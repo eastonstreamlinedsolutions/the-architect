@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Architect Pro | Enterprise Edition</title>
+    <title>Architect Pro | Nexus Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/plain-draggable@2.5.12/plain-draggable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leader-line-new@1.6.0/leader-line.min.js"></script>
@@ -12,253 +12,289 @@
     <style>
         :root {
             --ss-green: #16c800;
-            --ss-black: #080808;
-            --ss-card: #151515;
-            --ss-border: rgba(255,255,255,0.1);
+            --ss-black: #050505;
+            --ss-card: #121212;
+            --ss-border: rgba(255,255,255,0.08);
+            --ss-accent: #ff0055;
         }
 
         body, html {
             margin: 0; padding: 0;
             background-color: var(--ss-black);
-            background-image: radial-gradient(circle, #222 1px, transparent 1px);
-            background-size: 40px 40px;
-            font-family: 'Inter', sans-serif;
+            background-image: 
+                linear-gradient(rgba(22, 200, 0, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(22, 200, 0, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            font-family: 'Inter', -apple-system, sans-serif;
             color: white; overflow: hidden; height: 100vh;
         }
 
         #app { width: 100vw; height: 100vh; position: relative; }
 
-        /* HUD & PROJECT MANAGER */
+        /* --- LEFT PANEL: CONTROL HUD --- */
         .hud-ui {
             position: absolute; top: 20px; left: 20px; z-index: 100;
-            background: rgba(0,0,0,0.95); border: 1px solid var(--ss-border);
-            padding: 20px; border-radius: 12px; backdrop-filter: blur(15px); width: 260px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            background: rgba(10,10,10,0.95); border: 1px solid var(--ss-border);
+            padding: 24px; border-radius: 12px; backdrop-filter: blur(20px); width: 280px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.9);
         }
 
-        .hud-ui h1 { margin: 0 0 15px 0; font-size: 0.75rem; letter-spacing: 4px; color: var(--ss-green); text-transform: uppercase; border-bottom: 1px solid var(--ss-border); padding-bottom: 10px; }
+        .hud-header { border-bottom: 1px solid var(--ss-border); margin-bottom: 20px; padding-bottom: 10px; }
+        .hud-header h1 { margin: 0; font-size: 0.8rem; letter-spacing: 5px; color: var(--ss-green); text-transform: uppercase; }
         
-        .project-select {
-            width: 100%; background: #000; color: var(--ss-green); border: 1px solid var(--ss-border);
-            padding: 8px; font-size: 0.75rem; margin-bottom: 10px; border-radius: 4px; font-family: monospace;
+        /* --- RIGHT PANEL: PROJECT METRICS --- */
+        .metrics-hud {
+            position: absolute; top: 20px; right: 20px; z-index: 100;
+            background: rgba(10,10,10,0.9); border: 1px solid var(--ss-border);
+            padding: 20px; border-radius: 12px; width: 220px; text-align: right;
         }
 
-        .btn {
-            margin-top: 8px; background: #222; color: white; border: 1px solid var(--ss-border);
-            padding: 12px; font-weight: bold; font-size: 0.7rem; cursor: pointer; width: 100%;
-            text-transform: uppercase; transition: 0.2s; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .btn-primary { background: var(--ss-green); color: black; border: none; }
-        .btn:hover { border-color: var(--ss-green); background: #333; }
-        .btn-primary:hover { background: white; }
+        .metric-val { font-size: 1.5rem; font-weight: 900; color: var(--ss-green); font-family: monospace; }
+        .metric-lbl { font-size: 0.6rem; text-transform: uppercase; color: #666; letter-spacing: 1px; }
 
-        /* NODES */
+        /* --- THE NODES --- */
         .node {
-            position: absolute; width: 220px; 
+            position: absolute; width: 260px; 
             background: var(--ss-card); border: 1px solid var(--ss-border);
-            border-radius: 6px; box-shadow: 0 15px 40px rgba(0,0,0,0.6);
-            z-index: 10; transition: border-color 0.3s;
+            border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            z-index: 10; transition: transform 0.2s, border-color 0.3s;
         }
 
         .drag-handle {
-            height: 14px; background: #222; cursor: grab;
-            border-radius: 6px 6px 0 0; border-bottom: 1px solid var(--ss-border);
+            height: 18px; background: #1a1a1a; cursor: grab;
+            border-radius: 8px 8px 0 0; display: flex; align-items: center; justify-content: center;
+            font-size: 10px; color: #333; letter-spacing: 2px;
         }
-        .drag-handle:active { cursor: grabbing; }
 
-        /* TYPE COLORS */
-        .node.type-marketing { border-left: 4px solid #00c3ff; }
-        .node.type-sales { border-left: 4px solid var(--ss-green); }
-        .node.type-ops { border-left: 4px solid #ff00ff; }
-        .node.root { border: 2px solid var(--ss-green); border-left: 2px solid var(--ss-green); }
-
-        .node-content { padding: 15px; }
-
-        .node input {
+        .node-body { padding: 18px; }
+        
+        .node-title-input {
             background: transparent; border: none; color: white;
-            font-weight: 800; font-size: 0.9rem;
-            width: 100%; outline: none; margin-bottom: 10px;
+            font-weight: 900; font-size: 1.1rem; width: 100%; outline: none; margin-bottom: 8px;
         }
 
-        .type-selector {
-            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--ss-border);
-            color: #888; font-size: 0.65rem; padding: 4px; border-radius: 3px; outline: none;
+        /* --- WIREFRAME PREVIEW ICON --- */
+        .wireframe-preview {
+            height: 60px; background: #000; border: 1px dashed #333;
+            margin: 10px 0; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+            font-size: 0.6rem; color: #444; overflow: hidden;
         }
 
-        /* DELETE BUTTON */
-        .delete-node {
-            position: absolute; top: -8px; right: -8px; background: #ff4444;
-            color: white; border-radius: 50%; width: 20px; height: 20px;
-            font-size: 12px; cursor: pointer; border: none; display: none; z-index: 20;
+        .node-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        
+        select, input[type="number"] {
+            background: #000; border: 1px solid var(--ss-border);
+            color: #aaa; font-size: 0.65rem; padding: 6px; border-radius: 4px; outline: none;
         }
-        .node:hover .delete-node { display: flex; align-items: center; justify-content: center; }
 
-        /* CANVAS SNAPSHOT TEMP */
-        #capture-area { position: absolute; top: 0; left: 0; width: 3000px; height: 3000px; z-index: -1; pointer-events: none; }
+        /* Node State Classes */
+        .node.type-marketing { border-top: 4px solid #00c3ff; }
+        .node.type-sales { border-top: 4px solid var(--ss-green); }
+        .node.type-ops { border-top: 4px solid var(--ss-accent); }
+
+        .btn {
+            background: #1a1a1a; color: white; border: 1px solid var(--ss-border);
+            padding: 12px; font-weight: bold; font-size: 0.7rem; cursor: pointer;
+            text-transform: uppercase; border-radius: 6px; transition: 0.2s;
+            margin-top: 10px; width: 100%; display: block;
+        }
+        .btn-primary { background: var(--ss-green); color: black; border: none; }
+        .btn:hover { background: #222; border-color: var(--ss-green); }
+
+        .delete-btn { position: absolute; top: -10px; right: -10px; background: var(--ss-accent); border: none; border-radius: 50%; color: white; width: 22px; height: 22px; cursor: pointer; display: none; }
+        .node:hover .delete-btn { display: block; }
+
     </style>
 </head>
 <body>
 
 <div id="app">
     <div class="hud-ui">
-        <h1>// ARCHITECT_PRO</h1>
+        <div class="hud-header">
+            <h1>// NEXUS_ARCHITECT</h1>
+        </div>
         
-        <label style="font-size: 0.6rem; color: #555; display: block; margin-bottom: 5px;">ACTIVE PROJECT:</label>
-        <select class="project-select" v-model="activeProjectName" @change="switchProject">
-            <option v-for="name in projectList" :value="name">{{ name }}</option>
+        <label class="metric-lbl">Active Environment</label>
+        <select class="btn" style="text-align: left;" v-model="activeProject" @change="loadProject">
+            <option v-for="p in projects" :value="p">{{ p }}</option>
         </select>
 
-        <button class="btn" @click="createNewProject" style="font-size: 0.6rem;">+ New Client Slot</button>
-        <button class="btn btn-primary" @click="addPage('p-home')">Add Node +</button>
-        <button class="btn" @click="takeSnapshot">📸 Export PNG</button>
-        <button class="btn" @click="clearCanvas" style="color: #ff4444; border-color: rgba(255,0,0,0.2);">Wipe Cache</button>
+        <button class="btn btn-primary" @click="createNode">Deploy New Node +</button>
+        <button class="btn" @click="addProject">New Project Slot</button>
+        <button class="btn" @click="exportPNG">Snapshot Map (PNG)</button>
         
-        <div style="font-size: 0.6rem; color: #555; margin-top: 15px; font-family: monospace;">
-            STATUS: {{ status }}
+        <div style="margin-top: 20px; border-top: 1px solid var(--ss-border); padding-top: 15px;">
+            <label class="metric-lbl">Line Mode</label>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn" @click="lineMode = 'grid'" :style="lineMode=='grid' ? 'border-color:var(--ss-green)':''">Structure</button>
+                <button class="btn" @click="lineMode = 'fluid'" :style="lineMode=='fluid' ? 'border-color:var(--ss-accent)':''">User Flow</button>
+            </div>
         </div>
     </div>
 
-    <div id="canvas-wrapper">
+    <div class="metrics-hud">
+        <div class="metric-lbl">Estimated Build Cost</div>
+        <div class="metric-val">${{ totalCost }}</div>
+        <div class="metric-lbl" style="margin-top:15px;">Est. Delivery Time</div>
+        <div class="metric-val">{{ totalHours }} Hours</div>
+        <div class="metric-lbl" style="margin-top:15px;">Node Count</div>
+        <div class="metric-val">{{ nodes.length }}</div>
+    </div>
+
+    <div id="canvas">
         <div 
-            v-for="page in pages" 
-            :key="page.id" 
-            :id="page.id"
+            v-for="node in nodes" 
+            :key="node.id" 
+            :id="node.id"
             class="node"
-            :class="['type-' + page.type, { root: page.isRoot }]"
-            :style="{ left: page.x + 'px', top: page.y + 'px' }"
+            :class="['type-' + node.type, { root: node.isRoot }]"
+            :style="{ left: node.x + 'px', top: node.y + 'px' }"
         >
-            <div class="drag-handle"></div>
-            <button v-if="!page.isRoot" class="delete-node" @click="deletePage(page.id)">×</button>
-            <div class="node-content">
-                <input v-model="page.title" @input="autoSave" placeholder="Page Title...">
-                <select class="type-selector" v-model="page.type" @change="autoSave">
-                    <option value="marketing">MARKETING (SEO)</option>
-                    <option value="sales">SALES (CONV)</option>
-                    <option value="ops">OPS (SYSTEM)</option>
-                </select>
+            <div class="drag-handle">:: SYSTEM_NODE ::</div>
+            <button class="delete-btn" @click="removeNode(node.id)">×</button>
+            
+            <div class="node-body">
+                <input v-model="node.title" class="node-title-input" @input="save">
+                
+                <div class="wireframe-preview">
+                    <span v-if="node.layout === 'hero'">[ = HERO SECTION = ]</span>
+                    <span v-if="node.layout === 'grid'">[ ::: DATA GRID ::: ]</span>
+                    <span v-if="node.layout === 'form'">[ _ INPUT FORM _ ]</span>
+                </div>
+
+                <div class="node-meta">
+                    <div>
+                        <label class="metric-lbl">Function</label>
+                        <select v-model="node.type" @change="save">
+                            <option value="marketing">Marketing</option>
+                            <option value="sales">Sales</option>
+                            <option value="ops">Systems</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="metric-lbl">Blueprint</label>
+                        <select v-model="node.layout" @change="save">
+                            <option value="hero">Hero Page</option>
+                            <option value="grid">Inventory</option>
+                            <option value="form">Contact</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="node-meta" style="margin-top: 15px;">
+                    <div>
+                        <label class="metric-lbl">Dev Hours</label>
+                        <input type="number" v-model.number="node.hours" @input="save">
+                    </div>
+                    <div>
+                        <label class="metric-lbl">Complexity</label>
+                        <select v-model="node.complexity" @change="save">
+                            <option :value="100">Low</option>
+                            <option :value="250">Mid</option>
+                            <option :value="500">High</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    const { createApp, onMounted, ref, nextTick } = Vue;
+    const { createApp, ref, onMounted, nextTick, computed } = Vue;
 
     createApp({
         setup() {
-            const pages = ref([]);
-            const lines = [];
-            const projectList = ref(['Default_Project']);
-            const activeProjectName = ref('Default_Project');
-            const status = ref("SYSTEM_READY");
+            const nodes = ref([]);
+            const projects = ref(['Global_System']);
+            const activeProject = ref('Global_System');
+            const lineMode = ref('grid');
+            const connections = [];
 
-            // --- MULTI-PROJECT ENGINE ---
-            const loadProjectList = () => {
-                const list = localStorage.getItem('ss_project_list');
-                if (list) projectList.value = JSON.parse(list);
+            // --- CALCULATIONS ---
+            const totalCost = computed(() => {
+                return nodes.value.reduce((sum, n) => sum + (n.hours * n.complexity), 0);
+            });
+
+            const totalHours = computed(() => {
+                return nodes.value.reduce((sum, n) => sum + n.hours, 0);
+            });
+
+            // --- CORE LOGIC ---
+            const save = () => {
+                localStorage.setItem(`nexus_${activeProject.value}`, JSON.stringify(nodes.value));
+                localStorage.setItem('nexus_projects', JSON.stringify(projects.value));
             };
 
-            const switchProject = () => {
-                // Clear lines from old project
-                lines.forEach(l => { if(l.line) l.line.remove() });
-                lines.length = 0;
-                
-                const saved = localStorage.getItem('ss_proj_' + activeProjectName.value);
-                if (saved) {
-                    pages.value = JSON.parse(saved);
-                } else {
-                    pages.value = [{ id: 'p-home', title: 'HOME_BASE', x: 600, y: 100, isRoot: true, parent: null, type: 'sales' }];
-                }
-                
-                nextTick(() => {
-                    pages.value.forEach(p => initDraggable(p));
-                    status.value = "LOADED: " + activeProjectName.value;
-                });
+            const loadProject = () => {
+                connections.forEach(c => c.line.remove());
+                connections.length = 0;
+                const data = localStorage.getItem(`nexus_${activeProject.value}`);
+                nodes.value = data ? JSON.parse(data) : [{ id: 'node-0', title: 'CENTRAL_HUB', x: 500, y: 100, isRoot: true, type: 'sales', layout: 'hero', hours: 5, complexity: 250, parent: null }];
+                nextTick(() => nodes.value.forEach(n => initNode(n)));
             };
 
-            const createNewProject = () => {
-                const name = prompt("Enter Client Name:");
-                if (name && !projectList.value.includes(name)) {
-                    projectList.value.push(name);
-                    localStorage.setItem('ss_project_list', JSON.stringify(projectList.value));
-                    activeProjectName.value = name;
-                    switchProject();
-                }
+            const addProject = () => {
+                const name = prompt("Project ID:");
+                if(name) { projects.value.push(name); activeProject.value = name; loadProject(); }
             };
 
-            const autoSave = () => {
-                localStorage.setItem('ss_proj_' + activeProjectName.value, JSON.stringify(pages.value));
-                status.value = "AUTOSAVE_COMPLETE";
-            };
-
-            // --- NODE & LINE LOGIC ---
-            const initDraggable = (pageObj) => {
-                const el = document.getElementById(pageObj.id);
+            const initNode = (nodeObj) => {
+                const el = document.getElementById(nodeObj.id);
                 const handle = el.querySelector('.drag-handle');
-                const drag = new PlainDraggable(el, { handle: handle });
-                
-                drag.left = pageObj.x; drag.top = pageObj.y;
+                const d = new PlainDraggable(el, { handle });
 
-                if (pageObj.parent) {
+                if(nodeObj.parent) {
                     const line = new LeaderLine(
-                        document.getElementById(pageObj.parent),
+                        document.getElementById(nodeObj.parent),
                         el,
-                        { color: 'rgba(22, 200, 0, 0.4)', size: 2, dash: {animation: true}, path: 'grid', startSocket: 'bottom', endSocket: 'top' }
+                        { 
+                            color: lineMode.value === 'grid' ? '#16c800' : '#ff0055', 
+                            dash: lineMode.value === 'grid' ? false : {animation: true},
+                            size: 2, path: lineMode.value === 'grid' ? 'grid' : 'magnet'
+                        }
                     );
-                    lines.push({ id: pageObj.id, line, drag });
-                } else {
-                    lines.push({ id: pageObj.id, line: null, drag });
+                    connections.push({ id: nodeObj.id, line, d });
                 }
 
-                drag.onMove = function() {
-                    pageObj.x = drag.left; pageObj.y = drag.top;
-                    lines.forEach(l => { if(l.line) l.line.position() });
-                    autoSave();
+                d.onMove = () => {
+                    nodeObj.x = d.left; nodeObj.y = d.top;
+                    connections.forEach(c => c.line?.position());
+                    save();
                 };
             };
 
-            const addPage = (parentId) => {
-                const newId = 'p-' + Date.now();
-                const newPage = { id: newId, title: 'NEW_PAGE', x: 600, y: 350, parent: parentId, type: 'marketing' };
-                pages.value.push(newPage);
-                nextTick(() => { initDraggable(newPage); autoSave(); });
+            const createNode = () => {
+                const id = 'node-' + Date.now();
+                const newNode = { id, title: 'NEW_PROCESS', x: 500, y: 400, type: 'marketing', layout: 'grid', hours: 2, complexity: 100, parent: 'node-0' };
+                nodes.value.push(newNode);
+                nextTick(() => initNode(newNode));
+                save();
             };
 
-            const deletePage = (id) => {
-                const index = pages.value.findIndex(p => p.id === id);
-                if (index > -1) {
-                    pages.value.splice(index, 1);
-                    const lineIdx = lines.findIndex(l => l.id === id);
-                    if (lineIdx > -1) {
-                        if(lines[lineIdx].line) lines[lineIdx].line.remove();
-                        lines.splice(lineIdx, 1);
-                    }
-                    autoSave();
-                }
+            const removeNode = (id) => {
+                nodes.value = nodes.value.filter(n => n.id !== id);
+                const idx = connections.findIndex(c => c.id === id);
+                if(idx > -1) { connections[idx].line.remove(); connections.splice(idx, 1); }
+                save();
             };
 
-            // --- EXPORT SNAPSHOT ---
-            const takeSnapshot = () => {
-                status.value = "GENERATING_PNG...";
-                html2canvas(document.body, { backgroundColor: '#080808' }).then(canvas => {
-                    const link = document.createElement('a');
-                    link.download = activeProjectName.value + '_Sitemap.png';
-                    link.href = canvas.toDataURL();
-                    link.click();
-                    status.value = "EXPORT_SUCCESS";
+            const exportPNG = () => {
+                html2canvas(document.body).then(canvas => {
+                    const a = document.createElement('a');
+                    a.href = canvas.toDataURL();
+                    a.download = `${activeProject.value}_Architect.png`;
+                    a.click();
                 });
             };
 
-            const clearCanvas = () => {
-                if(confirm("WIPE ENTIRE DATABASE?")) { localStorage.clear(); location.reload(); }
-            };
-
             onMounted(() => {
-                loadProjectList();
-                switchProject();
+                const p = localStorage.getItem('nexus_projects');
+                if(p) projects.value = JSON.parse(p);
+                loadProject();
             });
 
-            return { pages, projectList, activeProjectName, switchProject, createNewProject, addPage, autoSave, clearCanvas, deletePage, status, takeSnapshot };
+            return { nodes, projects, activeProject, totalCost, totalHours, createNode, removeNode, save, loadProject, addProject, exportPNG, lineMode };
         }
     }).mount('#app');
 </script>
