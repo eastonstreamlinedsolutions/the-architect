@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Streamlined Solutions | Architect Pro</title>
+    <title>Streamlined Solutions | Architect Pro Elite</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/plain-draggable@2.5.12/plain-draggable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leader-line-new@1.6.0/leader-line.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
    
     <style>
         :root {
@@ -18,12 +20,25 @@
             --ss-card: #121212;
             --ss-border: rgba(255,255,255,0.08);
             --ss-accent: #ff0055;
+            --ss-text: #ffffff;
+            --ss-bg: #050505;
+            --ss-mode: dark; /* default */
+        }
+        [data-theme="light"] {
+            --ss-green: #16c800;
+            --ss-black: #f0f0f0;
+            --ss-sidebar: #ffffff;
+            --ss-card: #f8f8f8;
+            --ss-border: rgba(0,0,0,0.1);
+            --ss-accent: #ff0055;
+            --ss-text: #000000;
+            --ss-bg: #ffffff;
         }
         body, html {
             margin: 0; padding: 0;
-            background-color: var(--ss-black);
+            background-color: var(--ss-bg);
             font-family: 'Inter', -apple-system, sans-serif;
-            color: white; overflow: hidden; height: 100vh;
+            color: var(--ss-text); overflow: hidden; height: 100vh;
             display: flex;
         }
         #app { display: flex; width: 100vw; height: 100vh; }
@@ -33,7 +48,7 @@
             border-right: 1px solid var(--ss-border);
             display: flex; flex-direction: column; z-index: 1000;
         }
-        .sidebar-header { padding: 25px; border-bottom: 1px solid var(--ss-border); }
+        .sidebar-header { padding: 25px; border-bottom: 1px solid var(--ss-border); display: flex; justify-content: space-between; align-items: center; }
         .sidebar-header h1 { margin: 0; font-size: 0.75rem; letter-spacing: 2px; color: var(--ss-green); }
         .project-list { flex-grow: 1; overflow-y: auto; padding: 10px; }
         .project-item {
@@ -43,10 +58,10 @@
         }
         .project-item.active { border-color: var(--ss-green); background: rgba(22, 200, 0, 0.1); }
         .delete-proj-btn { position: absolute; right: 10px; top: 15px; color: #888; cursor: pointer; }
-        /* --- NOTES PANEL (Slide Out) --- */
+        /* --- NOTES PANEL --- */
         .notes-panel {
             position: fixed; right: 0; top: 0; bottom: 0; width: 380px;
-            background: #0f0f0f; border-left: 1px solid var(--ss-border);
+            background: var(--ss-sidebar); border-left: 1px solid var(--ss-border);
             z-index: 2000; transform: translateX(100%);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 30px; box-shadow: -20px 0 50px rgba(0,0,0,0.5);
@@ -54,9 +69,10 @@
         .notes-panel.open { transform: translateX(0); }
         /* --- VIEWPORT --- */
         .viewport { flex-grow: 1; position: relative; overflow: hidden; }
+        .canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transition: transform 0.1s; cursor: grab; }
         .canvas-grid {
-            position: absolute; top: 0; left: 0; width: 5000px; height: 5000px;
-            background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+            position: absolute; top: 0; left: 0; width: 10000px; height: 10000px;
+            background-image: radial-gradient(rgba(128,128,128,0.2) 1px, transparent 1px);
             background-size: 40px 40px;
         }
         /* --- NODES --- */
@@ -64,99 +80,138 @@
             position: absolute; width: 220px;
             background: var(--ss-card); border: 1px solid var(--ss-border);
             border-radius: 8px; box-shadow: 0 15px 40px rgba(0,0,0,0.6);
-            z-index: 10;
+            z-index: 10; transition: box-shadow 0.2s;
         }
+        .node:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
         .drag-handle { height: 10px; background: #222; cursor: grab; border-radius: 8px 8px 0 0; }
         .node:hover .drag-handle { background: var(--ss-green); }
         .node-body { padding: 15px; }
-        .node-input { background: transparent; border: none; color: white; font-weight: 800; font-size: 0.9rem; width: 100%; outline: none; }
-       
+        .node-icon { font-size: 1.2rem; margin-right: 5px; }
+        .node-input { background: transparent; border: none; color: var(--ss-text); font-weight: 800; font-size: 0.9rem; width: calc(100% - 30px); outline: none; }
         .node-actions { display: flex; gap: 10px; margin-top: 12px; border-top: 1px solid var(--ss-border); padding-top: 10px; flex-wrap: wrap; }
-        .action-icon { cursor: pointer; opacity: 0.4; transition: 0.2s; font-size: 0.65rem; font-weight: bold; }
+        .action-icon { cursor: pointer; opacity: 0.6; transition: 0.2s; font-size: 0.65rem; font-weight: bold; }
         .action-icon:hover { opacity: 1; color: var(--ss-green); }
         /* BUTTONS */
         .btn {
             background: #1a1a1a; color: white; border: 1px solid var(--ss-border);
             padding: 12px; font-weight: bold; font-size: 0.7rem; cursor: pointer;
-            text-transform: uppercase; border-radius: 6px; width: 100%; transition: 0.2s;
+            text-transform: uppercase; border-radius: 6px; transition: 0.2s;
         }
         .btn-green { background: var(--ss-green); color: black; border: none; }
         .btn:hover { background: #fff; color: #000; }
         textarea {
-            width: 100%; height: 250px; background: #000; border: 1px solid var(--ss-border);
+            width: 100%; height: 250px; background: #111; border: 1px solid var(--ss-border);
             color: #ccc; padding: 15px; border-radius: 6px; outline: none; font-family: monospace;
-            font-size: 0.8rem; margin-top: 10px; resize: none;
+            font-size: 0.8rem; margin-top: 10px; resize: vertical;
         }
         .metrics-bar {
-            position: absolute; bottom: 20px; left: 300px; right: 20px;
+            position: absolute; bottom: 20px; left: 20px; right: 20px;
             background: rgba(0,0,0,0.8); padding: 15px 25px; border-radius: 10px;
             display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid var(--ss-border); backdrop-filter: blur(10px);
+            border: 1px solid var(--ss-border); backdrop-filter: blur(10px); z-index: 50;
         }
-        /* Proposal PDF hidden styling */
-        #proposal-export-container { display: none; }
+        .cost-breakdown { font-size: 0.7rem; color: #fff; }
+        /* Annotation */
+        .annotation { position: absolute; width: 180px; background: rgba(255,255,0,0.2); padding: 10px; border-radius: 4px; z-index: 5; }
     </style>
 </head>
-<body>
+<body data-theme="dark">
 <div id="app">
     <aside class="sidebar">
         <div class="sidebar-header">
-            <h1>STREAMLINED ARCHITECT</h1>
+            <h1>STREAMLINED ARCHITECT PRO</h1>
+            <span class="action-icon" @click="toggleTheme">🌗</span>
         </div>
         <div class="project-list">
-            <div v-for="p in projects" :key="p.id"
-                 class="project-item" :class="{active: activeProjectId === p.id}"
-                 @click="loadProject(p.id)">
+            <div v-for="p in projects" :key="p.id" class="project-item" :class="{active: activeProjectId === p.id}" @click="loadProject(p.id)">
                 <div style="font-weight:bold;">{{ p.name }}</div>
-                <div style="font-size:0.6rem; color:#555; margin-top:4px;">Nodes: {{ p.count }} | Est: ${{ p.cost }}</div>
+                <div style="font-size:0.6rem; color:#888; margin-top:4px;">Nodes: {{ p.count }} | Est: ${{ p.cost }}</div>
                 <span class="delete-proj-btn" @click.stop="deleteProject(p.id)">×</span>
             </div>
         </div>
-        <div style="padding: 20px; border-top: 1px solid var(--ss-border);">
+        <div style="padding: 20px; border-top: 1px solid var(--ss-border); display: grid; gap: 10px;">
             <button class="btn btn-green" @click="createProject">New Client +</button>
-            <button class="btn" @click="generateProposalPDF" style="margin-top:10px;">Proposal PDF ↓</button>
-        </div>
-    </aside>
-    <main class="viewport" id="canvas-view">
-        <div class="canvas-grid"></div>
-        <button class="btn btn-green" style="position:absolute; top:20px; right:20px; width:auto; z-index:100;" @click="addNode">Add Node +</button>
-        <div v-for="node in nodes" :key="node.id" :id="node.id" class="node" :style="{left: node.x+'px', top: node.y+'px'}">
-            <div class="drag-handle"></div>
-            <div class="node-body">
-                <input v-model="node.title" class="node-input" @input="save" placeholder="Node Name">
-               
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:10px;">
-                    <input type="number" v-model.number="node.hours" @input="save" style="background:#000; color:white; border:1px solid #333; font-size:0.6rem; padding:3px;">
-                    <select v-model.number="node.rate" @change="save" style="background:#000; color:white; border:1px solid #333; font-size:0.6rem;">
-                        <option :value="100">Low ($100)</option>
-                        <option :value="200">Med ($200)</option>
-                        <option :value="300">High ($300)</option>
-                    </select>
-                </div>
-                <div class="node-actions">
-                    <span class="action-icon" @click="openNotes(node)">📝 SPECS</span>
-                    <span class="action-icon" @click="startConnect(node.id)">→ FROM</span>
-                    <span class="action-icon" @click="connectTo(node.id)">← TO</span>
-                    <span class="action-icon" @click="removeNode(node.id)" style="color:#ff4444;">× DELETE</span>
+            <button class="btn" @click="loadTemplate">Load Template 📄</button>
+            <button class="btn" @click="autoLayout">Auto Layout 🔄</button>
+            <button class="btn" @click="undo">Undo ↩️</button>
+            <button class="btn" @click="redo">Redo ↪️</button>
+            <button class="btn" @click="exportJSON">Export JSON ↓</button>
+            <button class="btn" @click="exportPNG">Export PNG 🖼️</button>
+            <button class="btn" @click="generateProposalPDF">Proposal PDF 📑</button>
+            <button class="btn" @click="saveVersion">Save Version 💾</button>
+            <button class="btn" @click="showVersions = !showVersions">Versions 📜</button>
+            <div v-if="showVersions">
+                <div v-for="(v, i) in versions" :key="i" class="project-item" @click="loadVersion(i)">
+                    Version {{ i + 1 }} - {{ v.timestamp }}
                 </div>
             </div>
         </div>
+    </aside>
+    <main class="viewport" id="canvas-view" @wheel.prevent="handleWheel" @mousedown="startPan" @mousemove="pan" @mouseup="endPan" @mouseleave="endPan">
+        <div class="canvas-container" ref="canvasContainer">
+            <div class="canvas-grid"></div>
+            <div v-for="node in nodes" :key="node.id" :id="node.id" class="node" :style="{left: node.x+'px', top: node.y+'px', borderColor: getNodeColor(node)}">
+                <div class="drag-handle"></div>
+                <div class="node-body">
+                    <span class="node-icon">{{ getNodeIcon(node) }}</span>
+                    <input v-model="node.title" class="node-input" @input="save" placeholder="Node Name">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:5px; margin-top:10px;">
+                        <input type="number" v-model.number="node.hours" @input="save" style="background:#111; color:var(--ss-text); border:1px solid #333; font-size:0.6rem; padding:3px;">
+                        <select v-model.number="node.rate" @change="save" style="background:#111; color:var(--ss-text); border:1px solid #333; font-size:0.6rem;">
+                            <option :value="100">Low ($100)</option>
+                            <option :value="200">Med ($200)</option>
+                            <option :value="300">High ($300)</option>
+                        </select>
+                        <select v-model="node.phase" @change="save" style="background:#111; color:var(--ss-text); border:1px solid #333; font-size:0.6rem;">
+                            <option value="Phase 1">Phase 1</option>
+                            <option value="Phase 2">Phase 2</option>
+                            <option value="Phase 3">Phase 3</option>
+                        </select>
+                    </div>
+                    <div style="margin-top:5px;">
+                        <select v-model="node.type" @change="save" style="background:#111; color:var(--ss-text); border:1px solid #333; font-size:0.6rem; width:100%;">
+                            <option v-for="t in nodeTypes" :value="t.type">{{ t.defaultTitle }}</option>
+                        </select>
+                    </div>
+                    <div style="margin-top:5px;">
+                        <select v-model="node.status" @change="save" style="background:#111; color:var(--ss-text); border:1px solid #333; font-size:0.6rem; width:100%;">
+                            <option value="planned">Planned</option>
+                            <option value="inprogress">In Progress</option>
+                            <option value="done">Done</option>
+                            <option value="blocked">Blocked</option>
+                        </select>
+                    </div>
+                    <div class="node-actions">
+                        <span class="action-icon" @click="openNotes(node)">📝 Specs</span>
+                        <span class="action-icon" @click="startConnect(node.id)">→ Connect From</span>
+                        <span class="action-icon" @click="connectTo(node.id)">← Connect To</span>
+                        <span class="action-icon" @click="addAnnotation(node.id)">💬 Annotate</span>
+                        <span class="action-icon" @click="removeNode(node.id)" style="color:#ff4444;">× Delete</span>
+                    </div>
+                </div>
+            </div>
+            <div v-for="a in annotations" :key="a.id" class="annotation" :style="{left: a.x+'px', top: a.y+'px'}">
+                <textarea v-model="a.text" @input="save" placeholder="Annotation..."></textarea>
+            </div>
+        </div>
+        <button class="btn btn-green" style="position:absolute; top:20px; right:20px; width:auto; z-index:100;" @click="addNode">Add Node +</button>
         <div class="metrics-bar">
-            <div style="font-size:0.7rem; letter-spacing:1px; color:#555;">CLIENT_REF: <span style="color:white; font-weight:bold;">{{ activeProjectName }}</span></div>
+            <div style="font-size:0.7rem; letter-spacing:1px; color:#888;">CLIENT: <span style="color:var(--ss-text); font-weight:bold;">{{ activeProjectName }}</span></div>
+            <div class="cost-breakdown">
+                <div v-for="(cost, phase) in phaseCosts" :key="phase">{{ phase }}: ${{ cost }}</div>
+            </div>
             <div style="display:flex; gap:30px;">
-                <div style="font-size:0.7rem; color:#fff;">HOURS: {{ totalHours }}h</div>
-                <div style="font-size:0.7rem; color:var(--ss-green); font-weight:bold;">VALUE: ${{ totalCost }}</div>
+                <div style="font-size:0.7rem; color:var(--ss-text);">HOURS: {{ totalHours }}h</div>
+                <div style="font-size:0.7rem; color:var(--ss-green); font-weight:bold;">TOTAL: ${{ totalCost }}</div>
             </div>
         </div>
     </main>
     <div class="notes-panel" :class="{open: selectedNode}">
         <div v-if="selectedNode">
-            <h2 style="font-size:0.8rem; color:var(--ss-green); letter-spacing:2px; margin-bottom:5px;">TECHNICAL_SPECIFICATION</h2>
+            <h2 style="font-size:0.8rem; color:var(--ss-green); letter-spacing:2px; margin-bottom:5px;">TECHNICAL SPEC</h2>
             <h3 style="margin: 0 0 20px 0; font-size:1.2rem;">{{ selectedNode.title }}</h3>
-           
-            <label style="font-size:0.6rem; color:#555; text-transform:uppercase;">Development Guidelines</label>
-            <textarea v-model="selectedNode.notes" @input="save" placeholder="Enter logic, API endpoints, or content requirements..."></textarea>
-           
+            <label style="font-size:0.6rem; color:#888; text-transform:uppercase;">Guidelines</label>
+            <textarea v-model="selectedNode.notes" @input="save" placeholder="Logic, APIs, requirements..."></textarea>
             <button class="btn" style="margin-top:20px;" @click="selectedNode = null">Save & Close</button>
         </div>
     </div>
@@ -165,42 +220,108 @@
     const { createApp, ref, onMounted, nextTick, computed } = Vue;
     createApp({
         setup() {
+            const nodeTypes = ref([
+                { type: 'frontend', icon: '🌐', color: '#4dabf7', defaultTitle: 'Frontend' },
+                { type: 'backend', icon: '⚙️', color: '#ff922b', defaultTitle: 'Backend' },
+                { type: 'database', icon: '🗄️', color: '#51cf66', defaultTitle: 'Database' },
+                { type: 'devops', icon: '🚀', color: '#cc5de8', defaultTitle: 'DevOps' },
+                { type: 'feature', icon: '✨', color: '#fab005', defaultTitle: 'Feature' },
+            ]);
+            const statusColors = {
+                planned: '#6c757d',
+                inprogress: '#ffc107',
+                done: '#28a745',
+                blocked: '#dc3545'
+            };
             const projects = ref([]);
             const activeProjectId = ref(null);
             const nodes = ref([]);
             const connectionLinks = ref([]);
+            const annotations = ref([]);
             const activeLines = ref([]);
             const selectedNode = ref(null);
             const connectingFrom = ref(null);
+            const history = ref([]);
+            const currentHistoryIndex = ref(-1);
+            const versions = ref([]);
+            const showVersions = ref(false);
+            const zoom = ref(1);
+            const panX = ref(0);
+            const panY = ref(0);
+            const isPanning = ref(false);
+            const startX = ref(0);
+            const startY = ref(0);
+            const canvasContainer = ref(null);
             const totalCost = computed(() => nodes.value.reduce((s, n) => s + (n.hours * n.rate), 0));
             const totalHours = computed(() => nodes.value.reduce((s, n) => s + n.hours, 0));
+            const phaseCosts = computed(() => {
+                const costs = {};
+                nodes.value.forEach(n => {
+                    const phase = n.phase || 'Unassigned';
+                    costs[phase] = (costs[phase] || 0) + (n.hours * n.rate);
+                });
+                return costs;
+            });
             const activeProjectName = computed(() => projects.value.find(p => p.id === activeProjectId.value)?.name || 'NONE');
+            const getNodeIcon = (node) => nodeTypes.value.find(t => t.type === node.type)?.icon || '❓';
+            const getNodeColor = (node) => statusColors[node.status || 'planned'] || nodeTypes.value.find(t => t.type === node.type)?.color || 'var(--ss-border)';
+            const pushHistory = () => {
+                const state = {
+                    nodes: JSON.parse(JSON.stringify(nodes.value)),
+                    connections: JSON.parse(JSON.stringify(connectionLinks.value)),
+                    annotations: JSON.parse(JSON.stringify(annotations.value))
+                };
+                history.value = history.value.slice(0, currentHistoryIndex.value + 1);
+                history.value.push(state);
+                currentHistoryIndex.value = history.value.length - 1;
+                save();
+            };
+            const undo = () => {
+                if (currentHistoryIndex.value > 0) {
+                    currentHistoryIndex.value--;
+                    loadState(history.value[currentHistoryIndex.value]);
+                }
+            };
+            const redo = () => {
+                if (currentHistoryIndex.value < history.value.length - 1) {
+                    currentHistoryIndex.value++;
+                    loadState(history.value[currentHistoryIndex.value]);
+                }
+            };
+            const loadState = (state) => {
+                nodes.value = state.nodes;
+                connectionLinks.value = state.connections;
+                annotations.value = state.annotations;
+                redrawLines();
+                save();
+            };
             const save = () => {
                 localStorage.setItem('ss_nodes_' + activeProjectId.value, JSON.stringify(nodes.value));
                 localStorage.setItem('ss_connections_' + activeProjectId.value, JSON.stringify(connectionLinks.value));
+                localStorage.setItem('ss_annotations_' + activeProjectId.value, JSON.stringify(annotations.value));
                 const p = projects.value.find(p => p.id === activeProjectId.value);
                 if (p) { p.count = nodes.value.length; p.cost = totalCost.value; }
-                localStorage.setItem('ss_architect_v4_repo', JSON.stringify(projects.value));
+                localStorage.setItem('ss_architect_pro_repo', JSON.stringify(projects.value));
             };
             const loadProject = (id) => {
                 activeLines.value.forEach(l => l.line.remove());
                 activeLines.value = [];
                 activeProjectId.value = id;
                 const savedNodes = localStorage.getItem('ss_nodes_' + id);
-                nodes.value = savedNodes ? JSON.parse(savedNodes) : [{id: 'root', title: 'CENTRAL HUB', x: 400, y: 150, hours: 2, rate: 200, notes: ''}];
+                nodes.value = savedNodes ? JSON.parse(savedNodes) : [{id: 'root', title: 'Central Hub', x: 400, y: 150, hours: 2, rate: 200, notes: '', type: 'feature', status: 'planned', phase: 'Phase 1'}];
                 const savedConnections = localStorage.getItem('ss_connections_' + id);
                 connectionLinks.value = savedConnections ? JSON.parse(savedConnections) : [];
+                const savedAnnotations = localStorage.getItem('ss_annotations_' + id);
+                annotations.value = savedAnnotations ? JSON.parse(savedAnnotations) : [];
                 nextTick(() => {
                     nodes.value.forEach(n => initNode(n));
-                    connectionLinks.value.forEach(link => {
-                        const line = new LeaderLine(
-                            document.getElementById(link.from),
-                            document.getElementById(link.to),
-                            { color: '#16c800', size: 1, dash: {animation: true}, path: 'grid', startSocket: 'right', endSocket: 'left' }
-                        );
-                        activeLines.value.push({from: link.from, to: link.to, line});
-                    });
+                    connectionLinks.value.forEach(link => addLine(link));
+                    annotations.value.forEach(a => initAnnotation(a));
                 });
+                history.value = [];
+                currentHistoryIndex.value = -1;
+                pushHistory();
+                versions.value = JSON.parse(localStorage.getItem('ss_versions_' + id) || '[]');
             };
             const initNode = (nodeObj) => {
                 const el = document.getElementById(nodeObj.id);
@@ -209,8 +330,29 @@
                 d.onMove = () => {
                     nodeObj.x = d.left; nodeObj.y = d.top;
                     activeLines.value.forEach(l => l.line.position());
-                    save();
+                    pushHistory();
                 };
+            };
+            const initAnnotation = (ann) => {
+                const el = document.getElementById(ann.id);
+                if (el) new PlainDraggable(el);
+            };
+            const addLine = (link) => {
+                const fromEl = document.getElementById(link.from);
+                const toEl = document.getElementById(link.to);
+                if (fromEl && toEl) {
+                    const line = new LeaderLine(fromEl, toEl, {
+                        color: '#16c800', size: 2, dash: {animation: true}, path: 'grid',
+                        startSocket: 'auto', endSocket: 'auto',
+                        middleLabel: LeaderLine.caption({text: link.label, color: '#ffffff', outlineColor: '#000000'})
+                    });
+                    activeLines.value.push({from: link.from, to: link.to, line});
+                }
+            };
+            const redrawLines = () => {
+                activeLines.value.forEach(l => l.line.remove());
+                activeLines.value = [];
+                connectionLinks.value.forEach(link => addLine(link));
             };
             const createProject = () => {
                 const name = prompt("Client Name:");
@@ -220,76 +362,186 @@
                 loadProject(id);
             };
             const deleteProject = (id) => {
-                if(!confirm("Delete this archive?")) return;
+                if(!confirm("Delete?")) return;
                 projects.value = projects.value.filter(p => p.id !== id);
                 localStorage.removeItem('ss_nodes_'+id);
                 localStorage.removeItem('ss_connections_'+id);
+                localStorage.removeItem('ss_annotations_'+id);
+                localStorage.removeItem('ss_versions_'+id);
                 save();
+            };
+            const loadTemplate = () => {
+                const template = prompt("Template: ecom, saas, blog?");
+                let templateNodes = [];
+                if (template === 'ecom') {
+                    templateNodes = [
+                        {id: 'root', title: 'Ecom Hub', x: 400, y: 150, hours: 5, rate: 200, notes: '', type: 'feature', status: 'planned', phase: 'Phase 1'},
+                        {id: 'n1', title: 'Frontend Store', x: 600, y: 300, hours: 10, rate: 150, notes: '', type: 'frontend', status: 'planned', phase: 'Phase 1'},
+                        {id: 'n2', title: 'Backend API', x: 200, y: 300, hours: 15, rate: 250, notes: '', type: 'backend', status: 'planned', phase: 'Phase 2'},
+                    ];
+                    connectionLinks.value = [{from: 'root', to: 'n1', label: 'UI'}, {from: 'root', to: 'n2', label: 'Data'}];
+                } // Add more templates as needed
+                if (templateNodes.length) {
+                    nodes.value = templateNodes;
+                    redrawLines();
+                    pushHistory();
+                }
             };
             const addNode = () => {
                 const id = 'n' + Date.now();
-                const newNode = {id, title: 'NEW PROCESS', x: 500 + Math.random() * 200, y: 400 + Math.random() * 100, hours: 1, rate: 200, notes: ''};
+                const newNode = {id, title: 'New Node', x: 500 + Math.random()*200, y: 400 + Math.random()*100, hours: 1, rate: 200, notes: '', type: 'feature', status: 'planned', phase: 'Phase 1'};
                 nodes.value.push(newNode);
                 nextTick(() => initNode(newNode));
-                save();
+                pushHistory();
             };
             const removeNode = (id) => {
                 if (id === 'root') return;
                 nodes.value = nodes.value.filter(n => n.id !== id);
+                connectionLinks.value = connectionLinks.value.filter(link => link.from !== id && link.to !== id);
                 activeLines.value.filter(l => l.from === id || l.to === id).forEach(l => l.line.remove());
                 activeLines.value = activeLines.value.filter(l => l.from !== id && l.to !== id);
-                connectionLinks.value = connectionLinks.value.filter(link => link.from !== id && link.to !== id);
-                save();
+                pushHistory();
             };
-            const startConnect = (id) => {
-                connectingFrom.value = id;
-            };
+            const startConnect = (id) => { connectingFrom.value = id; };
             const connectTo = (id) => {
                 if (!connectingFrom.value || connectingFrom.value === id) return;
-                addConnection(connectingFrom.value, id);
+                const label = prompt("Connection Label:") || "";
+                const link = {from: connectingFrom.value, to: id, label};
+                connectionLinks.value.push(link);
+                addLine(link);
                 connectingFrom.value = null;
+                pushHistory();
             };
-            const addConnection = (from, to) => {
-                if (connectionLinks.value.find(link => link.from === from && link.to === to)) return;
-                connectionLinks.value.push({from, to});
-                const line = new LeaderLine(
-                    document.getElementById(from),
-                    document.getElementById(to),
-                    { color: '#16c800', size: 1, dash: {animation: true}, path: 'grid', startSocket: 'right', endSocket: 'left' }
-                );
-                activeLines.value.push({from, to, line});
-                save();
+            const addAnnotation = (nodeId) => {
+                const node = nodes.value.find(n => n.id === nodeId);
+                const id = 'a' + Date.now();
+                const ann = {id, text: '', x: node.x + 250, y: node.y};
+                annotations.value.push(ann);
+                nextTick(() => initAnnotation(ann));
+                pushHistory();
             };
             const openNotes = (node) => { selectedNode.value = node; };
+            const autoLayout = () => {
+                const g = new dagre.graphlib.Graph();
+                g.setGraph({ rankdir: 'TB', nodesep: 50, ranksep: 100 });
+                g.setDefaultEdgeLabel(() => ({}));
+                nodes.value.forEach(n => g.setNode(n.id, { width: 220, height: 150 }));
+                connectionLinks.value.forEach(link => g.setEdge(link.from, link.to));
+                dagre.layout(g);
+                nodes.value.forEach(n => {
+                    const node = g.node(n.id);
+                    n.x = node.x - node.width / 2;
+                    n.y = node.y - node.height / 2;
+                });
+                redrawLines();
+                pushHistory();
+            };
+            const handleWheel = (e) => {
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                zoom.value = Math.max(0.2, Math.min(5, zoom.value + delta));
+                updateTransform();
+            };
+            const startPan = (e) => {
+                isPanning.value = true;
+                startX.value = e.clientX - panX.value;
+                startY.value = e.clientY - panY.value;
+            };
+            const pan = (e) => {
+                if (!isPanning.value) return;
+                panX.value = e.clientX - startX.value;
+                panY.value = e.clientY - startY.value;
+                updateTransform();
+            };
+            const endPan = () => { isPanning.value = false; };
+            const updateTransform = () => {
+                canvasContainer.value.style.transform = `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})`;
+            };
+            const toggleTheme = () => {
+                document.body.dataset.theme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+            };
+            const exportJSON = () => {
+                const data = {nodes: nodes.value, connections: connectionLinks.value, annotations: annotations.value};
+                const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+                saveAs(blob, `${activeProjectName.value}_arch.json`);
+            };
+            const exportPNG = async () => {
+                const canvas = await html2canvas(document.querySelector('.canvas-container'), { scale: 2 });
+                canvas.toBlob(blob => saveAs(blob, `${activeProjectName.value}_arch.png`));
+            };
+            const saveVersion = () => {
+                const timestamp = new Date().toLocaleString();
+                versions.value.push({timestamp, nodes: JSON.parse(JSON.stringify(nodes.value)), connections: JSON.parse(JSON.stringify(connectionLinks.value)), annotations: JSON.parse(JSON.stringify(annotations.value))});
+                localStorage.setItem('ss_versions_' + activeProjectId.value, JSON.stringify(versions.value));
+            };
+            const loadVersion = (index) => {
+                const v = versions.value[index];
+                nodes.value = v.nodes;
+                connectionLinks.value = v.connections;
+                annotations.value = v.annotations;
+                redrawLines();
+                pushHistory();
+            };
             const generateProposalPDF = async () => {
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF('p', 'mm', 'a4');
                 const title = activeProjectName.value.toUpperCase();
-                // Page 1: The Visual Map
-                doc.setFontSize(22); doc.text("STRATEGIC ARCHITECTURE PROPOSAL", 20, 30);
-                doc.setFontSize(14); doc.text(`Client: ${title}`, 20, 45);
-                doc.setFontSize(10); doc.text(`Estimated Value: $${totalCost.value} | Total Effort: ${totalHours.value} Hours`, 20, 55);
-                const canvas = await html2canvas(document.getElementById('canvas-view'), { backgroundColor: '#050505', scale: 2 });
-                const imgData = canvas.toDataURL('image/png');
-                doc.addImage(imgData, 'PNG', 10, 70, 190, 100);
-                // Page 2+: Technical Specifications
-                nodes.value.forEach((n, index) => {
+                // Cover Page
+                doc.setFontSize(28); doc.setTextColor(22, 200, 0);
+                doc.text("STREAMLINED SOLUTIONS", 105, 50, {align: 'center'});
+                doc.setFontSize(18); doc.setTextColor(0);
+                doc.text("Architecture Proposal", 105, 70, {align: 'center'});
+                doc.setFontSize(12); doc.text(`Client: ${title}`, 105, 90, {align: 'center'});
+                doc.text(`Date: ${new Date().toLocaleDateString()}`, 105, 100, {align: 'center'});
+                doc.addPage();
+                // TOC
+                doc.setFontSize(16); doc.text("Table of Contents", 20, 30);
+                doc.setFontSize(10);
+                doc.text("1. Overview", 20, 50);
+                doc.text("2. Visual Architecture", 20, 60);
+                doc.text("3. Phase Breakdown", 20, 70);
+                let y = 80;
+                nodes.value.forEach((n, i) => {
+                    doc.text(`${i+4}. ${n.title}`, 20, y);
+                    y += 10;
+                });
+                doc.addPage();
+                // Overview
+                doc.setFontSize(16); doc.text("Overview", 20, 30);
+                doc.setFontSize(10); doc.text(`Total Value: $${totalCost.value} | Hours: ${totalHours.value}`, 20, 40);
+                doc.addPage();
+                // Visual Map
+                doc.setFontSize(16); doc.text("Visual Architecture", 20, 30);
+                const canvasImg = await html2canvas(document.querySelector('.canvas-container'), { backgroundColor: '#050505', scale: 1 });
+                const imgData = canvasImg.toDataURL('image/png');
+                doc.addImage(imgData, 'PNG', 10, 50, 190, 200);
+                doc.addPage();
+                // Phase Breakdown
+                doc.setFontSize(16); doc.text("Phase Breakdown", 20, 30);
+                y = 40;
+                for (const [phase, cost] of Object.entries(phaseCosts.value)) {
+                    doc.text(`${phase}: $${cost}`, 20, y);
+                    y += 10;
+                }
+                // Node Specs
+                nodes.value.forEach(n => {
                     doc.addPage();
-                    doc.setFontSize(16); doc.setTextColor(22, 200, 0); doc.text(`${n.title}`, 20, 30);
-                    doc.setFontSize(10); doc.setTextColor(100); doc.text(`Effort Allocation: ${n.hours} Hours @ $${n.rate}/hr`, 20, 40);
-                    doc.line(20, 45, 190, 45);
+                    doc.setFontSize(16); doc.setTextColor(22, 200, 0); doc.text(n.title, 20, 30);
+                    doc.setFontSize(10); doc.setTextColor(100); doc.text(`Phase: ${n.phase} | Status: ${n.status} | Type: ${n.type}`, 20, 40);
+                    doc.text(`Effort: ${n.hours}h @ $${n.rate}/hr = $${n.hours * n.rate}`, 20, 45);
+                    doc.line(20, 50, 190, 50);
                     doc.setTextColor(0); doc.setFontSize(11);
-                    const splitNotes = doc.splitTextToSize(n.notes || "No additional technical specifications provided for this node.", 170);
+                    const splitNotes = doc.splitTextToSize(n.notes || "No specs.", 170);
                     doc.text(splitNotes, 20, 60);
                 });
-                doc.save(`${title}_Proposal.pdf`);
+                doc.save(`${title}_Proposal_Elite.pdf`);
             };
             onMounted(() => {
-                const data = localStorage.getItem('ss_architect_v4_repo');
+                const data = localStorage.getItem('ss_architect_pro_repo');
                 if (data) projects.value = JSON.parse(data);
                 if (projects.value.length > 0) loadProject(projects.value[0].id);
+                updateTransform();
             });
-            return { projects, activeProjectId, nodes, totalCost, totalHours, activeProjectName, selectedNode, createProject, deleteProject, loadProject, addNode, removeNode, openNotes, save, generateProposalPDF, startConnect, connectTo };
+            return { projects, activeProjectId, nodes, connectionLinks, annotations, totalCost, totalHours, phaseCosts, activeProjectName, selectedNode, nodeTypes, getNodeIcon, getNodeColor, createProject, deleteProject, loadProject, addNode, removeNode, openNotes, save, generateProposalPDF, startConnect, connectTo, autoLayout, undo, redo, exportJSON, exportPNG, loadTemplate, toggleTheme, addAnnotation, saveVersion, loadVersion, showVersions, canvasContainer };
         }
     }).mount('#app');
 </script>
