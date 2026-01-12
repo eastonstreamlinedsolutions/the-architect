@@ -3,14 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Streamlined Solutions | Architect Pro Elite</title>
+    <title>Streamlined Solutions | Architect Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/plain-draggable@2.5.12/plain-draggable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leader-line-new@1.6.0/leader-line.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     
     <style>
         :root {
@@ -19,157 +17,178 @@
             --ss-sidebar: #0a0a0a;
             --ss-card: #121212;
             --ss-border: rgba(255,255,255,0.08);
-            --ss-text: #ffffff;
-            --ss-bg: #050505;
         }
-        [data-theme="light"] {
-            --ss-black: #f0f0f0;
-            --ss-sidebar: #ffffff;
-            --ss-card: #f8f8f8;
-            --ss-border: rgba(0,0,0,0.1);
-            --ss-text: #000000;
-            --ss-bg: #ffffff;
-        }
+
         body, html {
             margin: 0; padding: 0;
-            background-color: var(--ss-bg);
+            background-color: var(--ss-black);
             font-family: 'Inter', sans-serif;
-            color: var(--ss-text); overflow: hidden; height: 100vh;
+            color: white; overflow: hidden; height: 100vh;
+            display: flex;
         }
-        #app { display: flex; width: 100vw; height: 100vh; }
-        
+
+        #app { display: flex; width: 100vw; height: 100vh; background: var(--ss-black); }
+
+        /* --- SIDEBAR --- */
         .sidebar {
             width: 280px; background: var(--ss-sidebar);
             border-right: 1px solid var(--ss-border);
-            display: flex; flex-direction: column; z-index: 1000; flex-shrink: 0;
+            display: flex; flex-direction: column; z-index: 1000;
+            flex-shrink: 0;
         }
-        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--ss-border); }
-        .sidebar-header h1 { margin: 0; font-size: 0.7rem; letter-spacing: 1px; color: var(--ss-green); }
 
-        .viewport { flex-grow: 1; position: relative; overflow: hidden; background: var(--ss-bg); }
-        .canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        
+        .sidebar-header { padding: 25px; border-bottom: 1px solid var(--ss-border); }
+        .sidebar-header h1 { margin: 0; font-size: 0.75rem; letter-spacing: 2px; color: var(--ss-green); }
+
+        .project-list { flex-grow: 1; overflow-y: auto; padding: 10px; }
+        .project-item {
+            padding: 12px; border-radius: 6px; margin-bottom: 6px;
+            background: rgba(255,255,255,0.02); border: 1px solid transparent;
+            cursor: pointer; position: relative;
+        }
+        .project-item.active { border-color: var(--ss-green); background: rgba(22, 200, 0, 0.1); }
+
+        /* --- NOTES PANEL --- */
+        .notes-panel {
+            position: fixed; right: 0; top: 0; bottom: 0; width: 380px;
+            background: #0f0f0f; border-left: 1px solid var(--ss-border);
+            z-index: 2000; transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 30px; box-shadow: -20px 0 50px rgba(0,0,0,0.5);
+        }
+        .notes-panel.open { transform: translateX(0); }
+
+        /* --- VIEWPORT --- */
+        .viewport { flex-grow: 1; position: relative; overflow: hidden; background: var(--ss-black); }
         .canvas-grid {
             position: absolute; top: 0; left: 0; width: 5000px; height: 5000px;
-            background-image: radial-gradient(rgba(128,128,128,0.15) 1px, transparent 1px);
-            background-size: 40px 40px; pointer-events: none;
+            background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 40px 40px; z-index: 0;
         }
 
+        /* --- NODES --- */
         .node {
-            position: absolute; width: 230px; 
+            position: absolute; width: 220px; 
             background: var(--ss-card); border: 1px solid var(--ss-border);
-            border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            z-index: 10; color: var(--ss-text);
+            border-radius: 8px; box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            z-index: 10;
         }
         .drag-handle { height: 12px; background: #222; cursor: grab; border-radius: 8px 8px 0 0; }
         .node:hover .drag-handle { background: var(--ss-green); }
-        .node-body { padding: 12px; }
+        .node-body { padding: 15px; }
+        .node-input { background: transparent; border: none; color: white; font-weight: 800; font-size: 0.95rem; width: 100%; outline: none; }
         
-        .node-input { background: transparent; border: none; color: var(--ss-text); font-weight: bold; width: 100%; outline: none; margin-bottom: 8px;}
-        .action-icon { cursor: pointer; font-size: 0.65rem; opacity: 0.6; padding: 4px; }
+        .node-actions { display: flex; gap: 10px; margin-top: 12px; border-top: 1px solid var(--ss-border); padding-top: 10px; }
+        .action-icon { cursor: pointer; opacity: 0.4; transition: 0.2s; font-size: 0.65rem; font-weight: bold; }
         .action-icon:hover { opacity: 1; color: var(--ss-green); }
 
-        .metrics-bar {
-            position: absolute; bottom: 20px; left: 20px; right: 20px;
-            background: rgba(10,10,10,0.9); padding: 12px 20px; border-radius: 8px;
-            display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid var(--ss-border); backdrop-filter: blur(10px); z-index: 100;
-        }
-        
+        /* BUTTONS */
         .btn {
             background: #1a1a1a; color: white; border: 1px solid var(--ss-border);
-            padding: 8px; font-size: 0.65rem; cursor: pointer; border-radius: 4px;
+            padding: 12px; font-weight: bold; font-size: 0.7rem; cursor: pointer;
+            text-transform: uppercase; border-radius: 6px; width: 100%; transition: 0.2s;
         }
-        .btn-green { background: var(--ss-green); color: black; border: none; font-weight: bold; }
-        
-        .notes-panel {
-            position: fixed; right: 0; top: 0; bottom: 0; width: 350px;
-            background: var(--ss-sidebar); border-left: 1px solid var(--ss-border);
-            z-index: 2000; transform: translateX(100%); transition: 0.3s; padding: 20px;
+        .btn-green { background: var(--ss-green); color: black; border: none; }
+        .btn:hover { background: #fff; color: #000; }
+
+        .metrics-bar {
+            position: absolute; bottom: 20px; left: 300px; right: 20px;
+            background: rgba(10,10,10,0.95); padding: 15px 25px; border-radius: 10px;
+            display: flex; justify-content: space-between; align-items: center;
+            border: 1px solid var(--ss-border); backdrop-filter: blur(10px); z-index: 500;
         }
-        .notes-panel.open { transform: translateX(0); }
         
         select, input[type="number"] {
-            background: #000; border: 1px solid #333; color: white; font-size: 0.6rem; border-radius: 3px;
+            background: #000; border: 1px solid #333; color: white; padding: 4px; font-size: 0.7rem; border-radius: 4px;
         }
     </style>
 </head>
-<body data-theme="dark">
+<body>
+
 <div id="app">
     <aside class="sidebar">
-        <div class="sidebar-header">
-            <h1>STREAMLINED PRO</h1>
-            <button class="btn" @click="toggleTheme" style="margin-top:10px; width: 100%;">Toggle Light/Dark</button>
-        </div>
-        <div style="flex-grow: 1; overflow-y: auto; padding: 10px;">
-            <div v-for="p in projects" :key="p.id" @click="loadProject(p.id)" 
-                 style="padding: 10px; margin-bottom: 5px; cursor: pointer; border-radius: 5px;"
-                 :style="{background: activeProjectId === p.id ? 'rgba(22,200,0,0.2)' : 'rgba(255,255,255,0.05)'}">
-                <div style="font-size: 0.8rem; font-weight: bold;">{{ p.name }}</div>
+        <div class="sidebar-header"><h1>STREAMLINED ARCHITECT</h1></div>
+        <div class="project-list">
+            <div v-for="p in projects" :key="p.id" class="project-item" :class="{active: activeProjectId === p.id}" @click="loadProject(p.id)">
+                <div style="font-weight:bold;">{{ p.name }}</div>
+                <div style="font-size:0.6rem; color:#555; margin-top:4px;">{{ p.count || 0 }} System Nodes</div>
             </div>
         </div>
-        <div style="padding: 20px; border-top: 1px solid var(--ss-border); display: grid; gap: 8px;">
+        <div style="padding: 20px;">
             <button class="btn btn-green" @click="createProject">New Client +</button>
-            <button class="btn" @click="autoLayout">Auto Layout</button>
-            <button class="btn" @click="generateProposalPDF">Export Proposal PDF</button>
+            <button class="btn" @click="generateProposalPDF" style="margin-top:10px;">Generate Proposal</button>
         </div>
     </aside>
 
-    <main class="viewport">
+    <main class="viewport" id="canvas-view">
         <div class="canvas-grid"></div>
-        <div class="canvas-container" ref="canvasContainer" id="canvas-container">
-            <div v-for="node in nodes" :key="node.id" :id="node.id" class="node" :style="{left: node.x+'px', top: node.y+'px'}">
-                <div class="drag-handle"></div>
-                <div class="node-body">
-                    <input v-model="node.title" class="node-input" @input="save">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
-                        <input type="number" v-model.number="node.hours" @input="save">
-                        <select v-model.number="node.rate" @change="save">
+        <button v-if="activeProjectId" class="btn btn-green" style="position:absolute; top:20px; right:20px; width:auto; z-index:100;" @click="addNode">Add Node +</button>
+
+        <div v-for="node in nodes" :key="node.id" :id="node.id" class="node" :style="{left: node.x+'px', top: node.y+'px'}">
+            <div class="drag-handle"></div>
+            <div class="node-body">
+                <input v-model="node.title" class="node-input" @input="save" placeholder="Node Name">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:10px;">
+                    <div>
+                        <label style="font-size:0.5rem; color:#444;">UNITS</label>
+                        <input type="number" v-model.number="node.hours" @input="save" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="font-size:0.5rem; color:#444;">TIER</label>
+                        <select v-model.number="node.rate" @change="save" style="width:100%">
                             <option :value="100">Tier 1</option>
                             <option :value="200">Tier 2</option>
                             <option :value="300">Tier 3</option>
                         </select>
                     </div>
-                    <div style="margin-top: 10px; display: flex; justify-content: space-between;">
-                        <span class="action-icon" @click="openNotes(node)">📝 SPECS</span>
-                        <span class="action-icon" @click="removeNode(node.id)" style="color:red">DELETE</span>
-                    </div>
+                </div>
+                <div class="node-actions">
+                    <span class="action-icon" @click="openNotes(node)">📝 SPECS</span>
+                    <span class="action-icon" @click="removeNode(node.id)" style="color:#ff4444;">× DELETE</span>
                 </div>
             </div>
         </div>
 
         <div class="metrics-bar" v-if="activeProjectId">
-            <div style="font-size: 0.7rem;">CLIENT: {{ activeProjectName }}</div>
-            <div style="font-weight: bold; color: var(--ss-green);">ESTIMATE: ${{ totalCost }}</div>
+            <div style="font-size:0.7rem; color:#555;">CLIENT: <span style="color:white; font-weight:bold;">{{ activeProjectName }}</span></div>
+            <div style="display:flex; gap:30px;">
+                <div style="font-size:0.7rem; color:#fff;">WORKLOAD: {{ totalHours }} Units</div>
+                <div style="font-size:0.7rem; color:var(--ss-green); font-weight:bold;">ESTIMATE: ${{ totalCost }}</div>
+            </div>
         </div>
     </main>
 
     <div class="notes-panel" :class="{open: selectedNode}">
         <div v-if="selectedNode">
+            <h2 style="font-size:0.8rem; color:var(--ss-green);">TECHNICAL_SPECS</h2>
             <h3>{{ selectedNode.title }}</h3>
-            <textarea v-model="selectedNode.notes" @input="save" style="width: 100%; height: 300px; background: #000; color: #fff;"></textarea>
-            <button class="btn" @click="selectedNode = null" style="margin-top: 10px; width: 100%;">Close</button>
+            <textarea v-model="selectedNode.notes" @input="save" placeholder="Define technical requirements..." style="width:100%; height:300px; background:#000; border:1px solid #333; color:#ccc; padding:10px;"></textarea>
+            <button class="btn" style="margin-top:20px;" @click="selectedNode = null">Close Specs</button>
         </div>
     </div>
 </div>
 
 <script>
     const { createApp, ref, onMounted, nextTick, computed } = Vue;
+
     createApp({
         setup() {
-            const projects = ref(JSON.parse(localStorage.getItem('ss_pro_repo') || '[]'));
+            const projects = ref([]);
             const activeProjectId = ref(null);
             const nodes = ref([]);
             const selectedNode = ref(null);
-            let activeLines = [];
+            let connections = [];
 
-            const totalCost = computed(() => nodes.value.reduce((s, n) => s + (n.hours * n.rate), 0));
+            const totalCost = computed(() => nodes.value.reduce((s, n) => s + ((n.hours || 0) * (n.rate || 0)), 0));
+            const totalHours = computed(() => nodes.value.reduce((s, n) => s + (n.hours || 0), 0));
             const activeProjectName = computed(() => projects.value.find(p => p.id === activeProjectId.value)?.name || '');
 
             const save = () => {
                 if (!activeProjectId.value) return;
                 localStorage.setItem('ss_nodes_' + activeProjectId.value, JSON.stringify(nodes.value));
-                localStorage.setItem('ss_pro_repo', JSON.stringify(projects.value));
+                const p = projects.value.find(p => p.id === activeProjectId.value);
+                if (p) { p.count = nodes.value.length; p.cost = totalCost.value; }
+                localStorage.setItem('ss_architect_v5_1', JSON.stringify(projects.value));
             };
 
             const initNode = (nodeObj) => {
@@ -178,20 +197,30 @@
                     if (!el) return;
                     const d = new PlainDraggable(el, { handle: el.querySelector('.drag-handle') });
                     d.left = nodeObj.x; d.top = nodeObj.y;
+                    
+                    if (nodeObj.parent) {
+                        const parentEl = document.getElementById(nodeObj.parent);
+                        if (parentEl) {
+                            const line = new LeaderLine(parentEl, el, { 
+                                color: '#16c800', size: 1, dash: {animation: true}, path: 'grid', startSocket: 'bottom', endSocket: 'top'
+                            });
+                            connections.push({id: nodeObj.id, line, d});
+                        }
+                    }
                     d.onMove = () => {
                         nodeObj.x = d.left; nodeObj.y = d.top;
-                        activeLines.forEach(l => l.position());
+                        connections.forEach(c => c.line?.position());
                         save();
                     };
                 });
             };
 
             const loadProject = (id) => {
-                activeLines.forEach(l => l.remove());
-                activeLines = [];
+                connections.forEach(c => c.line?.remove());
+                connections = [];
                 activeProjectId.value = id;
                 const saved = localStorage.getItem('ss_nodes_' + id);
-                nodes.value = saved ? JSON.parse(saved) : [{id: 'n'+Date.now(), title: 'Core App', x: 100, y: 100, hours: 1, rate: 200, notes: ''}];
+                nodes.value = saved ? JSON.parse(saved) : [{id: 'root-'+Date.now(), title: 'PRIMARY HUB', x: 400, y: 150, hours: 1, rate: 200, notes: '', parent: null}];
                 nextTick(() => nodes.value.forEach(n => initNode(n)));
             };
 
@@ -199,43 +228,46 @@
                 const name = prompt("Client Name:");
                 if (!name) return;
                 const id = 'p' + Date.now();
-                projects.value.push({id, name});
+                projects.value.push({id, name, count: 0});
                 loadProject(id);
                 save();
             };
 
-            const generateProposalPDF = async () => {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                doc.text(`Proposal: ${activeProjectName.value}`, 20, 20);
-                doc.text(`Total: $${totalCost.value}`, 20, 30);
-                doc.save('Proposal.pdf');
-            };
-
-            const autoLayout = () => {
-                const g = new dagre.graphlib.Graph();
-                g.setGraph({ rankdir: 'LR' });
-                g.setDefaultEdgeLabel(() => ({}));
-                nodes.value.forEach(n => g.setNode(n.id, { width: 250, height: 150 }));
-                dagre.layout(g);
-                nodes.value.forEach(n => {
-                    const pos = g.node(n.id);
-                    n.x = pos.x; n.y = pos.y;
-                    const el = document.getElementById(n.id);
-                    if (el) { el.style.left = n.x + 'px'; el.style.top = n.y + 'px'; }
-                });
+            const addNode = () => {
+                const id = 'n' + Date.now();
+                const parentId = nodes.value.length > 0 ? nodes.value[nodes.value.length - 1].id : null;
+                const newNode = {id, title: 'NEW PROCESS', x: 450, y: 350, hours: 1, rate: 200, notes: '', parent: parentId};
+                nodes.value.push(newNode);
+                initNode(newNode);
                 save();
             };
 
-            const toggleTheme = () => {
-                document.body.dataset.theme = document.body.dataset.theme === 'light' ? 'dark' : 'light';
+            const removeNode = (id) => {
+                nodes.value = nodes.value.filter(n => n.id !== id);
+                const idx = connections.findIndex(c => c.id === id);
+                if(idx > -1) { connections[idx].line.remove(); connections.splice(idx, 1); }
+                save();
+            };
+
+            const openNotes = (node) => { selectedNode.value = node; };
+
+            const generateProposalPDF = async () => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
+                doc.text("PROPOSAL: " + activeProjectName.value, 20, 20);
+                doc.text("TOTAL ESTIMATE: $" + totalCost.value, 20, 30);
+                doc.save(activeProjectName.value + "_Proposal.pdf");
             };
 
             onMounted(() => {
-                if (projects.value.length > 0) loadProject(projects.value[0].id);
+                const data = localStorage.getItem('ss_architect_v5_1');
+                if (data) {
+                    projects.value = JSON.parse(data);
+                    if (projects.value.length > 0) loadProject(projects.value[0].id);
+                }
             });
 
-            return { projects, activeProjectId, nodes, totalCost, activeProjectName, selectedNode, createProject, loadProject, generateProposalPDF, save, openNotes: (n) => selectedNode.value = n, autoLayout, toggleTheme, removeNode: (id) => { nodes.value = nodes.value.filter(n => n.id !== id); save(); } };
+            return { projects, activeProjectId, nodes, totalCost, totalHours, activeProjectName, selectedNode, createProject, loadProject, addNode, removeNode, openNotes, save, generateProposalPDF };
         }
     }).mount('#app');
 </script>
