@@ -3,101 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Architect Pro | Client Sitemap Tool</title>
+    <title>Architect Pro | Enterprise Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/plain-draggable@2.5.12/plain-draggable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leader-line-new@1.6.0/leader-line.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <style>
         :root {
             --ss-green: #16c800;
-            --ss-black: #0a0a0a;
-            --ss-card: #1a1a1a;
+            --ss-black: #080808;
+            --ss-card: #151515;
             --ss-border: rgba(255,255,255,0.1);
         }
 
         body, html {
             margin: 0; padding: 0;
             background-color: var(--ss-black);
-            background-image: radial-gradient(circle, #1a1a1a 1px, transparent 1px);
-            background-size: 30px 30px; /* Technical Grid Background */
+            background-image: radial-gradient(circle, #222 1px, transparent 1px);
+            background-size: 40px 40px;
             font-family: 'Inter', sans-serif;
             color: white; overflow: hidden; height: 100vh;
         }
 
         #app { width: 100vw; height: 100vh; position: relative; }
 
-        /* HUD & Controls */
+        /* HUD & PROJECT MANAGER */
         .hud-ui {
             position: absolute; top: 20px; left: 20px; z-index: 100;
-            background: rgba(0,0,0,0.9); border: 1px solid var(--ss-border);
-            padding: 20px; border-radius: 8px; backdrop-filter: blur(10px); width: 220px;
+            background: rgba(0,0,0,0.95); border: 1px solid var(--ss-border);
+            padding: 20px; border-radius: 12px; backdrop-filter: blur(15px); width: 260px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
         }
 
-        .hud-ui h1 { margin: 0; font-size: 0.7rem; letter-spacing: 3px; color: var(--ss-green); text-transform: uppercase; }
+        .hud-ui h1 { margin: 0 0 15px 0; font-size: 0.75rem; letter-spacing: 4px; color: var(--ss-green); text-transform: uppercase; border-bottom: 1px solid var(--ss-border); padding-bottom: 10px; }
         
+        .project-select {
+            width: 100%; background: #000; color: var(--ss-green); border: 1px solid var(--ss-border);
+            padding: 8px; font-size: 0.75rem; margin-bottom: 10px; border-radius: 4px; font-family: monospace;
+        }
+
         .btn {
-            margin-top: 10px; background: #222; color: white; border: 1px solid var(--ss-border);
-            padding: 10px; font-weight: bold; font-size: 0.7rem; cursor: pointer; width: 100%;
-            text-transform: uppercase; transition: 0.2s;
+            margin-top: 8px; background: #222; color: white; border: 1px solid var(--ss-border);
+            padding: 12px; font-weight: bold; font-size: 0.7rem; cursor: pointer; width: 100%;
+            text-transform: uppercase; transition: 0.2s; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 8px;
         }
         .btn-primary { background: var(--ss-green); color: black; border: none; }
         .btn:hover { border-color: var(--ss-green); background: #333; }
         .btn-primary:hover { background: white; }
 
-        /* Draggable Nodes */
+        /* NODES */
         .node {
-            position: absolute; width: 160px; min-height: 40px;
+            position: absolute; width: 220px; 
             background: var(--ss-card); border: 1px solid var(--ss-border);
-            border-radius: 4px; cursor: move; padding: 10px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            z-index: 10; transition: border-color 0.3s;
         }
 
-        .node:hover { border-color: var(--ss-green); }
-        .node.root { border: 2px solid var(--ss-green); }
+        .drag-handle {
+            height: 14px; background: #222; cursor: grab;
+            border-radius: 6px 6px 0 0; border-bottom: 1px solid var(--ss-border);
+        }
+        .drag-handle:active { cursor: grabbing; }
 
-        /* Editable Text Input */
+        /* TYPE COLORS */
+        .node.type-marketing { border-left: 4px solid #00c3ff; }
+        .node.type-sales { border-left: 4px solid var(--ss-green); }
+        .node.type-ops { border-left: 4px solid #ff00ff; }
+        .node.root { border: 2px solid var(--ss-green); border-left: 2px solid var(--ss-green); }
+
+        .node-content { padding: 15px; }
+
         .node input {
             background: transparent; border: none; color: white;
-            text-align: center; font-weight: bold; font-size: 0.8rem;
-            width: 100%; outline: none; cursor: text;
+            font-weight: 800; font-size: 0.9rem;
+            width: 100%; outline: none; margin-bottom: 10px;
         }
 
-        .node.root input { color: var(--ss-green); }
+        .type-selector {
+            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--ss-border);
+            color: #888; font-size: 0.65rem; padding: 4px; border-radius: 3px; outline: none;
+        }
 
-        /* Trash Icon */
+        /* DELETE BUTTON */
         .delete-node {
-            position: absolute; top: -10px; right: -10px; background: #ff4444;
+            position: absolute; top: -8px; right: -8px; background: #ff4444;
             color: white; border-radius: 50%; width: 20px; height: 20px;
-            font-size: 12px; display: none; cursor: pointer; border: none;
+            font-size: 12px; cursor: pointer; border: none; display: none; z-index: 20;
         }
         .node:hover .delete-node { display: flex; align-items: center; justify-content: center; }
 
+        /* CANVAS SNAPSHOT TEMP */
+        #capture-area { position: absolute; top: 0; left: 0; width: 3000px; height: 3000px; z-index: -1; pointer-events: none; }
     </style>
 </head>
 <body>
 
 <div id="app">
     <div class="hud-ui">
-        <h1>Architect Pro</h1>
-        <button class="btn btn-primary" @click="addPage">Add Page +</button>
-        <button class="btn" @click="saveToLocal">Save Project</button>
-        <button class="btn" @click="clearCanvas" style="color: #ff4444;">Clear Canvas</button>
+        <h1>// ARCHITECT_PRO</h1>
+        
+        <label style="font-size: 0.6rem; color: #555; display: block; margin-bottom: 5px;">ACTIVE PROJECT:</label>
+        <select class="project-select" v-model="activeProjectName" @change="switchProject">
+            <option v-for="name in projectList" :value="name">{{ name }}</option>
+        </select>
+
+        <button class="btn" @click="createNewProject" style="font-size: 0.6rem;">+ New Client Slot</button>
+        <button class="btn btn-primary" @click="addPage('p-home')">Add Node +</button>
+        <button class="btn" @click="takeSnapshot">📸 Export PNG</button>
+        <button class="btn" @click="clearCanvas" style="color: #ff4444; border-color: rgba(255,0,0,0.2);">Wipe Cache</button>
+        
         <div style="font-size: 0.6rem; color: #555; margin-top: 15px; font-family: monospace;">
-            STORAGE: {{ storageStatus }}
+            STATUS: {{ status }}
         </div>
     </div>
 
-    <div 
-        v-for="page in pages" 
-        :key="page.id" 
-        :id="page.id"
-        class="node"
-        :class="{ root: page.isRoot }"
-        :style="{ left: page.x + 'px', top: page.y + 'px' }"
-    >
-        <input v-model="page.title" @change="saveToLocal">
-        <button v-if="!page.isRoot" class="delete-node" @click="deletePage(page.id)">×</button>
+    <div id="canvas-wrapper">
+        <div 
+            v-for="page in pages" 
+            :key="page.id" 
+            :id="page.id"
+            class="node"
+            :class="['type-' + page.type, { root: page.isRoot }]"
+            :style="{ left: page.x + 'px', top: page.y + 'px' }"
+        >
+            <div class="drag-handle"></div>
+            <button v-if="!page.isRoot" class="delete-node" @click="deletePage(page.id)">×</button>
+            <div class="node-content">
+                <input v-model="page.title" @input="autoSave" placeholder="Page Title...">
+                <select class="type-selector" v-model="page.type" @change="autoSave">
+                    <option value="marketing">MARKETING (SEO)</option>
+                    <option value="sales">SALES (CONV)</option>
+                    <option value="ops">OPS (SYSTEM)</option>
+                </select>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -108,77 +148,80 @@
         setup() {
             const pages = ref([]);
             const lines = [];
-            const storageStatus = ref("Idle");
+            const projectList = ref(['Default_Project']);
+            const activeProjectName = ref('Default_Project');
+            const status = ref("SYSTEM_READY");
 
-            // --- LOAD DATA ---
-            const loadData = () => {
-                const saved = localStorage.getItem('ss_architect_save');
+            // --- MULTI-PROJECT ENGINE ---
+            const loadProjectList = () => {
+                const list = localStorage.getItem('ss_project_list');
+                if (list) projectList.value = JSON.parse(list);
+            };
+
+            const switchProject = () => {
+                // Clear lines from old project
+                lines.forEach(l => { if(l.line) l.line.remove() });
+                lines.length = 0;
+                
+                const saved = localStorage.getItem('ss_proj_' + activeProjectName.value);
                 if (saved) {
                     pages.value = JSON.parse(saved);
-                    storageStatus.value = "Loaded from Local";
                 } else {
-                    pages.value = [
-                        { id: 'p-home', title: 'HOME', x: 600, y: 100, isRoot: true, parent: null }
-                    ];
+                    pages.value = [{ id: 'p-home', title: 'HOME_BASE', x: 600, y: 100, isRoot: true, parent: null, type: 'sales' }];
+                }
+                
+                nextTick(() => {
+                    pages.value.forEach(p => initDraggable(p));
+                    status.value = "LOADED: " + activeProjectName.value;
+                });
+            };
+
+            const createNewProject = () => {
+                const name = prompt("Enter Client Name:");
+                if (name && !projectList.value.includes(name)) {
+                    projectList.value.push(name);
+                    localStorage.setItem('ss_project_list', JSON.stringify(projectList.value));
+                    activeProjectName.value = name;
+                    switchProject();
                 }
             };
 
-            // --- SAVE DATA ---
-            const saveToLocal = () => {
-                localStorage.setItem('ss_architect_save', JSON.stringify(pages.value));
-                storageStatus.value = "Project Saved";
-                setTimeout(() => storageStatus.value = "Monitoring...", 2000);
+            const autoSave = () => {
+                localStorage.setItem('ss_proj_' + activeProjectName.value, JSON.stringify(pages.value));
+                status.value = "AUTOSAVE_COMPLETE";
             };
 
+            // --- NODE & LINE LOGIC ---
             const initDraggable = (pageObj) => {
                 const el = document.getElementById(pageObj.id);
-                const drag = new PlainDraggable(el);
+                const handle = el.querySelector('.drag-handle');
+                const drag = new PlainDraggable(el, { handle: handle });
                 
-                // Set initial position
-                drag.left = pageObj.x;
-                drag.top = pageObj.y;
+                drag.left = pageObj.x; drag.top = pageObj.y;
 
-                // Create Dotted Line if it has a parent
                 if (pageObj.parent) {
                     const line = new LeaderLine(
                         document.getElementById(pageObj.parent),
                         el,
-                        { 
-                            color: 'rgba(255,255,255,0.3)', 
-                            size: 2, 
-                            dash: {animation: true}, // Creates the Dotted Animated Line
-                            path: 'grid', 
-                            startSocket: 'bottom', 
-                            endSocket: 'top' 
-                        }
+                        { color: 'rgba(22, 200, 0, 0.4)', size: 2, dash: {animation: true}, path: 'grid', startSocket: 'bottom', endSocket: 'top' }
                     );
                     lines.push({ id: pageObj.id, line, drag });
                 } else {
                     lines.push({ id: pageObj.id, line: null, drag });
                 }
 
-                // Update data and lines on move
                 drag.onMove = function() {
-                    pageObj.x = drag.left;
-                    pageObj.y = drag.top;
+                    pageObj.x = drag.left; pageObj.y = drag.top;
                     lines.forEach(l => { if(l.line) l.line.position() });
+                    autoSave();
                 };
             };
 
-            const addPage = () => {
+            const addPage = (parentId) => {
                 const newId = 'p-' + Date.now();
-                const newPage = {
-                    id: newId,
-                    title: 'NEW PAGE',
-                    x: 600,
-                    y: 300,
-                    parent: 'p-home'
-                };
+                const newPage = { id: newId, title: 'NEW_PAGE', x: 600, y: 350, parent: parentId, type: 'marketing' };
                 pages.value.push(newPage);
-                nextTick(() => {
-                    initDraggable(newPage);
-                    saveToLocal();
-                });
+                nextTick(() => { initDraggable(newPage); autoSave(); });
             };
 
             const deletePage = (id) => {
@@ -190,25 +233,32 @@
                         if(lines[lineIdx].line) lines[lineIdx].line.remove();
                         lines.splice(lineIdx, 1);
                     }
-                    saveToLocal();
+                    autoSave();
                 }
+            };
+
+            // --- EXPORT SNAPSHOT ---
+            const takeSnapshot = () => {
+                status.value = "GENERATING_PNG...";
+                html2canvas(document.body, { backgroundColor: '#080808' }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = activeProjectName.value + '_Sitemap.png';
+                    link.href = canvas.toDataURL();
+                    link.click();
+                    status.value = "EXPORT_SUCCESS";
+                });
             };
 
             const clearCanvas = () => {
-                if(confirm("Wipe all data?")) {
-                    localStorage.removeItem('ss_architect_save');
-                    location.reload();
-                }
+                if(confirm("WIPE ENTIRE DATABASE?")) { localStorage.clear(); location.reload(); }
             };
 
             onMounted(() => {
-                loadData();
-                nextTick(() => {
-                    pages.value.forEach(p => initDraggable(p));
-                });
+                loadProjectList();
+                switchProject();
             });
 
-            return { pages, addPage, saveToLocal, clearCanvas, deletePage, storageStatus };
+            return { pages, projectList, activeProjectName, switchProject, createNewProject, addPage, autoSave, clearCanvas, deletePage, status, takeSnapshot };
         }
     }).mount('#app');
 </script>
