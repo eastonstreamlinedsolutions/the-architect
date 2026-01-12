@@ -17,13 +17,12 @@
             --ss-sidebar: #0a0a0a;
             --ss-card: #121212;
             --ss-border: rgba(255,255,255,0.08);
-            --ss-accent: #ff0055;
         }
 
         body, html {
             margin: 0; padding: 0;
             background-color: var(--ss-black);
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Inter', sans-serif;
             color: white; overflow: hidden; height: 100vh;
             display: flex;
         }
@@ -44,12 +43,11 @@
         .project-item {
             padding: 12px; border-radius: 6px; margin-bottom: 6px;
             background: rgba(255,255,255,0.02); border: 1px solid transparent;
-            cursor: pointer; transition: 0.2s; position: relative;
+            cursor: pointer; position: relative;
         }
         .project-item.active { border-color: var(--ss-green); background: rgba(22, 200, 0, 0.1); }
-        .delete-proj-btn { position: absolute; right: 10px; top: 15px; color: #333; cursor: pointer; }
 
-        /* --- NOTES PANEL (Slide Out) --- */
+        /* --- NOTES PANEL --- */
         .notes-panel {
             position: fixed; right: 0; top: 0; bottom: 0; width: 380px;
             background: #0f0f0f; border-left: 1px solid var(--ss-border);
@@ -77,7 +75,7 @@
         .drag-handle { height: 10px; background: #222; cursor: grab; border-radius: 8px 8px 0 0; }
         .node:hover .drag-handle { background: var(--ss-green); }
         .node-body { padding: 15px; }
-        .node-input { background: transparent; border: none; color: white; font-weight: 800; font-size: 0.9rem; width: 100%; outline: none; }
+        .node-input { background: transparent; border: none; color: white; font-weight: 800; font-size: 0.95rem; width: 100%; outline: none; }
         
         .node-actions { display: flex; gap: 10px; margin-top: 12px; border-top: 1px solid var(--ss-border); padding-top: 10px; }
         .action-icon { cursor: pointer; opacity: 0.4; transition: 0.2s; font-size: 0.65rem; font-weight: bold; }
@@ -92,49 +90,38 @@
         .btn-green { background: var(--ss-green); color: black; border: none; }
         .btn:hover { background: #fff; color: #000; }
 
-        textarea {
-            width: 100%; height: 250px; background: #000; border: 1px solid var(--ss-border);
-            color: #ccc; padding: 15px; border-radius: 6px; outline: none; font-family: monospace;
-            font-size: 0.8rem; margin-top: 10px; resize: none;
-        }
-
         .metrics-bar {
             position: absolute; bottom: 20px; left: 300px; right: 20px;
-            background: rgba(0,0,0,0.8); padding: 15px 25px; border-radius: 10px;
+            background: rgba(0,0,0,0.85); padding: 15px 25px; border-radius: 10px;
             display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid var(--ss-border); backdrop-filter: blur(10px);
+            border: 1px solid var(--ss-border); backdrop-filter: blur(10px); z-index: 500;
         }
-
-        /* Proposal PDF hidden styling */
-        #proposal-export-container { display: none; }
+        
+        select, input[type="number"] {
+            background: #000; border: 1px solid #333; color: white; padding: 4px; font-size: 0.7rem; border-radius: 4px;
+        }
     </style>
 </head>
 <body>
 
 <div id="app">
     <aside class="sidebar">
-        <div class="sidebar-header">
-            <h1>STREAMLINED ARCHITECT</h1>
-        </div>
+        <div class="sidebar-header"><h1>STREAMLINED ARCHITECT</h1></div>
         <div class="project-list">
-            <div v-for="p in projects" :key="p.id" 
-                 class="project-item" :class="{active: activeProjectId === p.id}"
-                 @click="loadProject(p.id)">
+            <div v-for="p in projects" :key="p.id" class="project-item" :class="{active: activeProjectId === p.id}" @click="loadProject(p.id)">
                 <div style="font-weight:bold;">{{ p.name }}</div>
-                <div style="font-size:0.6rem; color:#555; margin-top:4px;">Nodes: {{ p.count }} | Est: ${{ p.cost }}</div>
-                <span class="delete-proj-btn" @click.stop="deleteProject(p.id)">×</span>
+                <div style="font-size:0.6rem; color:#555; margin-top:4px;">Complexity: {{ p.count }} Nodes</div>
             </div>
         </div>
-        <div style="padding: 20px; border-top: 1px solid var(--ss-border);">
+        <div style="padding: 20px;">
             <button class="btn btn-green" @click="createProject">New Client +</button>
-            <button class="btn" @click="generateProposalPDF" style="margin-top:10px;">Proposal PDF ↓</button>
+            <button class="btn" @click="generateProposalPDF" style="margin-top:10px;">Export Proposal PDF</button>
         </div>
     </aside>
 
     <main class="viewport" id="canvas-view">
         <div class="canvas-grid"></div>
-
-        <button class="btn btn-green" style="position:absolute; top:20px; right:20px; width:auto; z-index:100;" @click="addNode">Add Node +</button>
+        <button class="btn btn-green" style="position:absolute; top:20px; right:20px; width:auto; z-index:100;" @click="addNode">Add Process Node +</button>
 
         <div v-for="node in nodes" :key="node.id" :id="node.id" class="node" :style="{left: node.x+'px', top: node.y+'px'}">
             <div class="drag-handle"></div>
@@ -142,12 +129,18 @@
                 <input v-model="node.title" class="node-input" @input="save" placeholder="Node Name">
                 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:10px;">
-                    <input type="number" v-model.number="node.hours" @input="save" style="background:#000; color:white; border:1px solid #333; font-size:0.6rem; padding:3px;">
-                    <select v-model.number="node.rate" @change="save" style="background:#000; color:white; border:1px solid #333; font-size:0.6rem;">
-                        <option :value="100">Low ($100)</option>
-                        <option :value="200">Med ($200)</option>
-                        <option :value="300">High ($300)</option>
-                    </select>
+                    <div>
+                        <label style="font-size:0.5rem; color:#444; display:block;">UNIT EFFORT</label>
+                        <input type="number" v-model.number="node.hours" @input="save" style="width:100%">
+                    </div>
+                    <div>
+                        <label style="font-size:0.5rem; color:#444; display:block;">COMPLEXITY</label>
+                        <select v-model.number="node.rate" @change="save" style="width:100%">
+                            <option :value="100">Tier 1</option>
+                            <option :value="200">Tier 2</option>
+                            <option :value="300">Tier 3</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="node-actions">
@@ -158,23 +151,20 @@
         </div>
 
         <div class="metrics-bar">
-            <div style="font-size:0.7rem; letter-spacing:1px; color:#555;">CLIENT_REF: <span style="color:white; font-weight:bold;">{{ activeProjectName }}</span></div>
+            <div style="font-size:0.7rem; color:#555;">CLIENT: <span style="color:white; font-weight:bold;">{{ activeProjectName }}</span></div>
             <div style="display:flex; gap:30px;">
-                <div style="font-size:0.7rem; color:#fff;">HOURS: {{ totalHours }}h</div>
-                <div style="font-size:0.7rem; color:var(--ss-green); font-weight:bold;">VALUE: ${{ totalCost }}</div>
+                <div style="font-size:0.7rem; color:#fff;">EST. WORKLOAD: {{ totalHours }} Units</div>
+                <div style="font-size:0.7rem; color:var(--ss-green); font-weight:bold;">SYSTEM VALUE: ${{ totalCost }}</div>
             </div>
         </div>
     </main>
 
     <div class="notes-panel" :class="{open: selectedNode}">
         <div v-if="selectedNode">
-            <h2 style="font-size:0.8rem; color:var(--ss-green); letter-spacing:2px; margin-bottom:5px;">TECHNICAL_SPECIFICATION</h2>
-            <h3 style="margin: 0 0 20px 0; font-size:1.2rem;">{{ selectedNode.title }}</h3>
-            
-            <label style="font-size:0.6rem; color:#555; text-transform:uppercase;">Development Guidelines</label>
-            <textarea v-model="selectedNode.notes" @input="save" placeholder="Enter logic, API endpoints, or content requirements..."></textarea>
-            
-            <button class="btn" style="margin-top:20px;" @click="selectedNode = null">Save & Close</button>
+            <h2 style="font-size:0.8rem; color:var(--ss-green); letter-spacing:2px;">TECHNICAL_SPECIFICATION</h2>
+            <h3 style="margin: 5px 0 20px 0;">{{ selectedNode.title }}</h3>
+            <textarea v-model="selectedNode.notes" @input="save" placeholder="Define technical requirements..."></textarea>
+            <button class="btn" style="margin-top:20px;" @click="selectedNode = null">Close Specs</button>
         </div>
     </div>
 </div>
@@ -196,9 +186,7 @@
 
             const save = () => {
                 localStorage.setItem('ss_nodes_' + activeProjectId.value, JSON.stringify(nodes.value));
-                const p = projects.value.find(p => p.id === activeProjectId.value);
-                if (p) { p.count = nodes.value.length; p.cost = totalCost.value; }
-                localStorage.setItem('ss_architect_v4_repo', JSON.stringify(projects.value));
+                localStorage.setItem('ss_architect_v5_repo', JSON.stringify(projects.value));
             };
 
             const loadProject = (id) => {
@@ -206,7 +194,7 @@
                 connections.length = 0;
                 activeProjectId.value = id;
                 const saved = localStorage.getItem('ss_nodes_' + id);
-                nodes.value = saved ? JSON.parse(saved) : [{id: 'root', title: 'CENTRAL HUB', x: 400, y: 150, hours: 2, rate: 200, notes: '', parent: null}];
+                nodes.value = saved ? JSON.parse(saved) : [{id: 'root', title: 'PRIMARY HUB', x: 400, y: 150, hours: 1, rate: 200, notes: '', parent: null}];
                 nextTick(() => nodes.value.forEach(n => initNode(n)));
             };
 
@@ -214,14 +202,12 @@
                 const el = document.getElementById(nodeObj.id);
                 const d = new PlainDraggable(el, { handle: el.querySelector('.drag-handle') });
                 d.left = nodeObj.x; d.top = nodeObj.y;
-
                 if (nodeObj.parent) {
                     const line = new LeaderLine(document.getElementById(nodeObj.parent), el, { 
                         color: '#16c800', size: 1, dash: {animation: true}, path: 'grid', startSocket: 'bottom', endSocket: 'top'
                     });
                     connections.push({id: nodeObj.id, line, d});
                 }
-
                 d.onMove = () => {
                     nodeObj.x = d.left; nodeObj.y = d.top;
                     connections.forEach(c => c.line?.position());
@@ -230,23 +216,16 @@
             };
 
             const createProject = () => {
-                const name = prompt("Client Name:");
+                const name = prompt("Client Identifier:");
                 if (!name) return;
                 const id = 'p' + Date.now();
-                projects.value.push({id, name, count: 0, cost: 0});
+                projects.value.push({id, name, count: 0});
                 loadProject(id);
-            };
-
-            const deleteProject = (id) => {
-                if(!confirm("Delete this archive?")) return;
-                projects.value = projects.value.filter(p => p.id !== id);
-                localStorage.removeItem('ss_nodes_'+id);
-                save();
             };
 
             const addNode = () => {
                 const id = 'n' + Date.now();
-                const newNode = {id, title: 'NEW PROCESS', x: 500, y: 400, hours: 1, rate: 200, notes: '', parent: 'root'};
+                const newNode = {id, title: 'NEW PROCESS', x: 500, y: 350, hours: 1, rate: 200, notes: '', parent: 'root'};
                 nodes.value.push(newNode);
                 nextTick(() => initNode(newNode));
                 save();
@@ -260,43 +239,53 @@
                 save();
             };
 
-            const openNotes = (node) => { selectedNode.value = node; };
-
             const generateProposalPDF = async () => {
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF('p', 'mm', 'a4');
                 const title = activeProjectName.value.toUpperCase();
 
-                // Page 1: The Visual Map
-                doc.setFontSize(22); doc.text("STRATEGIC ARCHITECTURE PROPOSAL", 20, 30);
-                doc.setFontSize(14); doc.text(`Client: ${title}`, 20, 45);
-                doc.setFontSize(10); doc.text(`Estimated Value: $${totalCost.value} | Total Effort: ${totalHours.value} Hours`, 20, 55);
+                // Page 1: Executive Overview
+                doc.setFillColor(5, 5, 5); doc.rect(0, 0, 210, 297, 'F');
+                doc.setTextColor(22, 200, 0); doc.setFontSize(24); doc.text("SYSTEM ARCHITECTURE PROPOSAL", 20, 40);
+                doc.setTextColor(255); doc.setFontSize(14); doc.text(`CLIENT: ${title}`, 20, 55);
+                doc.setFontSize(10); doc.text(`TOTAL SYSTEM VALUE: $${totalCost.value}`, 20, 65);
 
                 const canvas = await html2canvas(document.getElementById('canvas-view'), { backgroundColor: '#050505', scale: 2 });
-                const imgData = canvas.toDataURL('image/png');
-                doc.addImage(imgData, 'PNG', 10, 70, 190, 100);
+                doc.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 80, 190, 100);
 
-                // Page 2+: Technical Specifications
-                nodes.value.forEach((n, index) => {
+                // Page 2: Line Item Breakdown
+                doc.addPage();
+                doc.setTextColor(0); doc.setFontSize(18); doc.text("FINANCIAL BREAKDOWN", 20, 30);
+                doc.setFontSize(10);
+                let y = 50;
+                nodes.value.forEach(n => {
+                    doc.text(`${n.title}`, 20, y);
+                    doc.text(`$${n.hours * n.rate}`, 170, y, {align: 'right'});
+                    doc.line(20, y+2, 190, y+2);
+                    y += 10;
+                });
+                doc.setFontSize(12); doc.text(`TOTAL ESTIMATE: $${totalCost.value}`, 170, y + 10, {align: 'right'});
+
+                // Pages 3+: Technical Outline
+                nodes.value.forEach(n => {
                     doc.addPage();
-                    doc.setFontSize(16); doc.setTextColor(22, 200, 0); doc.text(`${n.title}`, 20, 30);
-                    doc.setFontSize(10); doc.setTextColor(100); doc.text(`Effort Allocation: ${n.hours} Hours @ $${n.rate}/hr`, 20, 40);
-                    doc.line(20, 45, 190, 45);
-                    doc.setTextColor(0); doc.setFontSize(11);
-                    const splitNotes = doc.splitTextToSize(n.notes || "No additional technical specifications provided for this node.", 170);
-                    doc.text(splitNotes, 20, 60);
+                    doc.setFontSize(16); doc.setTextColor(22, 200, 0); doc.text(`OUTLINE: ${n.title}`, 20, 30);
+                    doc.line(20, 35, 190, 35);
+                    doc.setTextColor(50); doc.setFontSize(11);
+                    const splitNotes = doc.splitTextToSize(n.notes || "Standard implementation guidelines apply.", 170);
+                    doc.text(splitNotes, 20, 50);
                 });
 
-                doc.save(`${title}_Proposal.pdf`);
+                doc.save(`${title}_Architect_Proposal.pdf`);
             };
 
             onMounted(() => {
-                const data = localStorage.getItem('ss_architect_v4_repo');
+                const data = localStorage.getItem('ss_architect_v5_repo');
                 if (data) projects.value = JSON.parse(data);
                 if (projects.value.length > 0) loadProject(projects.value[0].id);
             });
 
-            return { projects, activeProjectId, nodes, totalCost, totalHours, activeProjectName, selectedNode, createProject, deleteProject, loadProject, addNode, removeNode, openNotes, save, generateProposalPDF };
+            return { projects, activeProjectId, nodes, totalCost, totalHours, activeProjectName, selectedNode, createProject, loadProject, addNode, removeNode, openNotes, save, generateProposalPDF };
         }
     }).mount('#app');
 </script>
