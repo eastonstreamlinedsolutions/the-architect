@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Architect | Interactive Site Mapper</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/plain-draggable@2.5.12/plain-draggable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leader-line-new@1.6.0/border-box.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leader-line-new@1.6.0/leader-line.min.js"></script>
+    
+    <style>
+        :root {
+            --ss-green: #16c800;
+            --ss-black: #0d0d0d;
+            --ss-border: rgba(255,255,255,0.1);
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            background-color: var(--ss-black);
+            font-family: 'Inter', sans-serif;
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #app { width: 100vw; height: 100vh; position: relative; }
+
+        /* HUD Overlay */
+        .hud-ui {
+            position: absolute; top: 20px; left: 20px; z-index: 100;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid var(--ss-border);
+            padding: 20px; border-radius: 4px; backdrop-filter: blur(10px);
+        }
+
+        .hud-ui h1 { margin: 0; font-size: 0.8rem; letter-spacing: 3px; color: var(--ss-green); text-transform: uppercase; }
+        
+        /* Draggable Nodes */
+        .node {
+            position: absolute;
+            width: 180px;
+            padding: 15px;
+            background: #1a1a1a;
+            border: 1px solid var(--ss-border);
+            border-radius: 4px;
+            cursor: move;
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .node:hover { border-color: var(--ss-green); }
+
+        .node.root { border: 2px solid var(--ss-green); color: var(--ss-green); }
+
+        /* Controls */
+        .btn-add {
+            margin-top: 15px;
+            background: var(--ss-green);
+            color: black;
+            border: none;
+            padding: 8px 15px;
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .instruction { font-size: 0.7rem; color: #666; margin-top: 10px; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="hud-ui">
+        <h1>System Architect</h1>
+        <div class="instruction">DRAG NODES TO MAP ARCHITECTURE</div>
+        <button class="btn-add" @click="addPage">Add New Page +</button>
+    </div>
+
+    <div 
+        v-for="page in pages" 
+        :key="page.id" 
+        :id="page.id"
+        class="node"
+        :class="{ root: page.isRoot }"
+        :style="{ left: page.x + 'px', top: page.y + 'px' }"
+    >
+        {{ page.title }}
+    </div>
+</div>
+
+<script>
+    const { createApp, onMounted, ref, nextTick } = Vue;
+
+    createApp({
+        setup() {
+            const pages = ref([
+                { id: 'p-home', title: 'HOME', x: 500, y: 50, isRoot: true },
+                { id: 'p-serv', title: 'SERVICES', x: 300, y: 250 },
+                { id: 'p-cont', title: 'CONTACT', x: 700, y: 250 }
+            ]);
+
+            const lines = [];
+
+            const initDraggable = (id, parentId) => {
+                const el = document.getElementById(id);
+                const drag = new PlainDraggable(el);
+                
+                // If there's a parent, draw a line
+                if (parentId) {
+                    const line = new LeaderLine(
+                        document.getElementById(parentId),
+                        el,
+                        { color: '#16c800', size: 2, path: 'grid', startSocket: 'bottom', endSocket: 'top' }
+                    );
+                    lines.push({ line, drag });
+                }
+
+                // Update line position on drag
+                drag.onMove = function() {
+                    lines.forEach(l => l.line.position());
+                };
+            };
+
+            const addPage = () => {
+                const newId = 'p-' + Date.now();
+                pages.value.push({
+                    id: newId,
+                    title: 'NEW PAGE',
+                    x: Math.random() * 500 + 100,
+                    y: 400
+                });
+                
+                nextTick(() => {
+                    initDraggable(newId, 'p-home');
+                });
+            };
+
+            onMounted(() => {
+                // Initialize existing pages
+                initDraggable('p-home');
+                initDraggable('p-serv', 'p-home');
+                initDraggable('p-cont', 'p-home');
+            });
+
+            return { pages, addPage };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
